@@ -1,0 +1,30 @@
+{
+  "name": "lan-beamdrop",
+  "version": "1.0.0",
+  "description": "LAN BeamDrop - 局域网文件互传 + 剪切板共享工具",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "bonjour-service": "^1.2.1",
+    "clipboardy": "^4.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "multer": "^1.4.5-lts.1",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "keywords": [
+    "lan",
+    "file-transfer",
+    "clipboard",
+    "harmonyos"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
+  }
+}

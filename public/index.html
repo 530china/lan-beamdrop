@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="LAN BeamDrop - 局域网文件互传与剪切板同步工具">
+  <meta name="theme-color" content="#0a0a0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>LAN BeamDrop - 局域网互传</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Toast 通知容器 -->
+  <div id="toast-container"></div>
+
+  <!-- 顶部 Header -->
+  <header id="app-header">
+    <div class="header-left">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#grad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <defs><linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#8b5cf6"/></linearGradient></defs>
+          <path d="M12 2L12 22M12 2L8 6M12 2L16 6M12 22L8 18M12 22L16 18"/>
+          <path d="M2 12h20" stroke-dasharray="3 3" opacity="0.5"/>
+        </svg>
+        <h1>LAN BeamDrop</h1>
+      </div>
+    </div>
+    <div class="header-right">
+      <button id="btn-settings" class="btn-icon hidden" title="主机设置">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <span id="device-name" class="device-badge">--</span>
+      <span id="connection-status" class="status-dot"></span>
+    </div>
+  </header>
+
+  <!-- 主内容区 -->
+  <main id="main-content">
+    <div class="chat-container">
+      <div class="chat-messages" id="chat-messages">
+        <div class="empty-state">
+          <span class="empty-icon">💬</span>
+          <p>没有任何记录</p>
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <input type="file" id="file-upload-input" multiple style="display: none;">
+        <button class="btn-attach" id="btn-attach" title="发送文件">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <textarea id="clipboard-input" placeholder="输入文字，或发个文件..." rows="1"></textarea>
+        <button class="btn-send" id="btn-send-clipboard">发送</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- 活动日志 -->
+  <footer id="activity-log">
+    <div class="log-header" id="log-toggle">
+      <span>📊 活动记录</span>
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+    </div>
+    <div class="log-content" id="log-content">
+      <div class="log-empty">暂无活动</div>
+    </div>
+  </footer>
+
+  <!-- Lightbox 容器 -->
+  <div id="lightbox" class="lightbox hidden">
+    <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="预览图">
+      <div class="lightbox-toolbar">
+        <a id="lightbox-download" href="" download class="lightbox-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          保存原图
+        </a>
+        <button id="lightbox-close" class="lightbox-btn btn-close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="lightbox hidden">
+    <div class="lightbox-backdrop" id="settings-backdrop"></div>
+    <div class="settings-content">
+      <h2>主机高级设置</h2>
+      <p class="settings-desc">此设置仅在当前主机可见。修改共享目录会立即生效，旧目录的文件依然保存在原处，但不会在聊天流中显示。</p>
+      
+      <div class="form-group">
+        <label for="setting-share-dir">📁 文件存储目录（绝对路径）</label>
+        <input type="text" id="setting-share-dir" placeholder="例如：D:\LANBeamDrop">
+      </div>
+      
+      <div class="settings-toolbar">
+        <button id="btn-save-settings" class="btn-primary">保存设置</button>
+        <button id="btn-close-settings" class="btn-secondary">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
