@@ -4,24 +4,55 @@
  */
 
 const { getPrimaryIP } = require('./network');
-
-let clipboardyModule = null;
-
-/**
- * 动态加载 clipboardy（ESM 模块需要动态 import）
- */
-async function getClipboardy() {
-  if (!clipboardyModule) {
-    clipboardyModule = await import('clipboardy');
-  }
-  return clipboardyModule.default || clipboardyModule;
-}
+const { execSync } = require('child_process');
+const os = require('os');
 
 // store history
 const MAX_HISTORY = 50;
 let clipboardHistory = [];
 let lastPCClipboard = '';
 let isWritingToPC = false;
+
+/**
+ * 原生读取剪切板 (兼容 Windows, Mac, Linux)
+ */
+function readNativeClipboard() {
+  const platform = os.platform();
+  try {
+    if (platform === 'win32') {
+      const script = `[Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Clipboard -Raw)))`;
+      const base64 = execSync(`powershell.exe -NoProfile -Command "${script}"`, { encoding: 'utf8', stdio: 'pipe' }).trim();
+      if (!base64) return '';
+      return Buffer.from(base64, 'base64').toString('utf8');
+    } else if (platform === 'darwin') {
+      return execSync('pbpaste', { encoding: 'utf8', stdio: 'pipe' });
+    } else {
+      return execSync('xclip -selection clipboard -o', { encoding: 'utf8', stdio: 'pipe' });
+    }
+  } catch (err) {
+    return '';
+  }
+}
+
+/**
+ * 原生写入剪切板
+ */
+function writeNativeClipboard(text) {
+  const platform = os.platform();
+  try {
+    if (platform === 'win32') {
+      const base64 = Buffer.from(text, 'utf8').toString('base64');
+      const script = `[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${base64}')) | Set-Clipboard`;
+      execSync(`powershell.exe -NoProfile -Command "${script}"`, { stdio: 'pipe' });
+    } else if (platform === 'darwin') {
+      execSync('pbcopy', { input: text, stdio: 'pipe' });
+    } else {
+      execSync('xclip -selection clipboard -in', { input: text, stdio: 'pipe' });
+    }
+  } catch (err) {
+    console.error('[剪切板] 写入系统剪切板失败:', err.message);
+  }
+}
 
 /**
  * 获取共享剪切板历史记录
@@ -53,8 +84,7 @@ function setSharedClipboard(data) {
 async function syncFromPC() {
   if (isWritingToPC) return clipboardHistory;
   try {
-    const clipboardy = await getClipboardy();
-    const content = await clipboardy.read();
+    const content = readNativeClipboard();
     if (content && content !== lastPCClipboard) {
       lastPCClipboard = content;
       const msg = {
@@ -82,8 +112,7 @@ async function writeToPC(content) {
   isWritingToPC = true;
   lastPCClipboard = content;
   try {
-    const clipboardy = await getClipboardy();
-    await clipboardy.write(content);
+    writeNativeClipboard(content);
   } catch (err) {
     console.error('[剪切板] 写入 PC 剪切板失败:', err.message);
     throw err;
