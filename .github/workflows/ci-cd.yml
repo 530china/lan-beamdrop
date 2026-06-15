@@ -22,8 +22,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        # npm ci 比 npm install 更稳定，它会严格按照 package-lock.json 安装
-        run: npm ci
+        run: npm install
 
       - name: Run Jest tests
         run: npm test
@@ -48,7 +47,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build executables with pkg
         run: npm run build
