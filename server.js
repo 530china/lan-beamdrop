@@ -14,6 +14,7 @@ const { startMdns } = require('./utils/mdns');
 const filesRouter = require('./routes/files');
 const clipboardRouter = require('./routes/clipboard');
 const settingsRouter = require('./routes/settings');
+const explorerRouter = require('./routes/explorer');
 
 const app = express();
 
@@ -84,6 +85,9 @@ app.use('/api/clipboard', clipboardRouter);
 
 // 设置 API
 app.use('/api/settings', settingsRouter);
+
+// 文件浏览器 API
+app.use('/api/explorer', explorerRouter);
 
 // SPA 回退：所有非 API 请求返回 index.html
 app.get('*', (req, res) => {

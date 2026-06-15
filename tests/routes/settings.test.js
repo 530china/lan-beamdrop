@@ -39,11 +39,12 @@ describe('Settings API Security & Functionality', () => {
   });
 
   it('should block non-localhost IPs from getting settings', async () => {
-    const res = await request(app)
+    const response = await request(app)
       .get('/api/settings')
       .set('x-simulated-ip', '192.168.1.100');
-    expect(res.status).toBe(403);
-    expect(res.body.success).toBe(false);
+    
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe('安全拦截：此接口仅允许运行服务的本机访问！');
   });
 
   it('should block non-localhost IPs from updating settings', async () => {

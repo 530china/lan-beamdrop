@@ -90,18 +90,76 @@
   <!-- Settings Modal -->
   <div id="settings-modal" class="lightbox hidden">
     <div class="lightbox-backdrop" id="settings-backdrop"></div>
-    <div class="settings-content">
-      <h2>主机高级设置</h2>
-      <p class="settings-desc">此设置仅在当前主机可见。修改共享目录会立即生效，旧目录的文件依然保存在原处，但不会在聊天流中显示。</p>
-      
-      <div class="form-group">
-        <label for="setting-share-dir">📁 文件存储目录（绝对路径）</label>
-        <input type="text" id="setting-share-dir" placeholder="例如：D:\LANBeamDrop">
+    <div class="settings-content with-sidebar">
+      <div class="settings-sidebar">
+        <h2>设置</h2>
+        <ul class="settings-menu" id="settings-menu">
+          <li class="active" data-tab="tab-storage">存储设置</li>
+          <li data-tab="tab-general">基本设置</li>
+        </ul>
       </div>
       
-      <div class="settings-toolbar">
-        <button id="btn-save-settings" class="btn-primary">保存设置</button>
-        <button id="btn-close-settings" class="btn-secondary">取消</button>
+      <div class="settings-main">
+        <!-- 存储设置 Tab -->
+        <div class="settings-tab-content active" id="tab-storage">
+          <h3>存储设置</h3>
+          <p class="settings-desc">此设置仅在当前主机可见。修改共享目录会立即生效，旧目录的文件依然保存在原处。</p>
+          
+          <div class="form-group">
+            <label for="setting-share-dir">📁 文件存储目录（绝对路径）</label>
+            <div class="input-with-btn">
+              <input type="text" id="setting-share-dir" placeholder="例如：D:\LANBeamDrop">
+              <button id="btn-browse-folder" class="btn-secondary" style="white-space: nowrap;">浏览...</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 基本设置 Tab -->
+        <div class="settings-tab-content" id="tab-general">
+          <h3>基本设置</h3>
+          <p class="settings-desc" style="color: var(--text-muted); font-style: italic;">(更多主机高级设置功能正在开发中...)</p>
+        </div>
+        
+        <div class="settings-toolbar">
+          <button id="btn-save-settings" class="btn-primary">保存设置</button>
+          <button id="btn-close-settings" class="btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Explorer Modal -->
+  <div id="explorer-modal" class="lightbox hidden" style="z-index: 3000;">
+    <div class="lightbox-backdrop" id="explorer-backdrop"></div>
+    <div class="explorer-content">
+      <div class="explorer-header">
+        <button id="explorer-btn-up" class="btn-icon" title="返回上一级">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="explorer-path-bar">
+          <input type="text" id="explorer-path-input" placeholder="输入路径并回车，或置空选盘符" />
+          <button id="explorer-btn-go" class="btn-icon" title="跳转">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </div>
+      </div>
+      <div class="explorer-body" style="display: flex; flex: 1; overflow: hidden;">
+        <div class="explorer-sidebar" id="explorer-sidebar">
+          <!-- 动态渲染盘符列表 -->
+        </div>
+        <div class="explorer-list" id="explorer-list">
+          <!-- 动态渲染文件夹列表 -->
+        </div>
+      </div>
+      <div class="explorer-toolbar" style="display: flex; justify-content: space-between; align-items: center;">
+        <button id="explorer-btn-mkdir" class="btn-secondary" title="新建文件夹" style="padding: 6px 12px; display: flex; gap: 6px; align-items: center; white-space: nowrap;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span style="font-size: 0.85rem;">新建文件夹</span>
+        </button>
+        <div style="display: flex; gap: 12px;">
+          <button id="explorer-btn-select" class="btn-primary">确认选择</button>
+          <button id="explorer-btn-cancel" class="btn-secondary">取消</button>
+        </div>
       </div>
     </div>
   </div>

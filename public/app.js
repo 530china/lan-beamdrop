@@ -120,6 +120,232 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- Settings UI: Tabs & Browse Folder ---
+  const settingsMenu = document.getElementById('settings-menu');
+  if (settingsMenu) {
+    settingsMenu.addEventListener('click', (e) => {
+      if (e.target.tagName === 'LI') {
+        // Remove active class from all tabs
+        settingsMenu.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+        document.querySelectorAll('.settings-tab-content').forEach(content => content.classList.remove('active'));
+        
+        // Add active class to clicked tab
+        e.target.classList.add('active');
+        const targetId = e.target.getAttribute('data-tab');
+        document.getElementById(targetId).classList.add('active');
+      }
+    });
+  }
+
+  const btnBrowseFolder = document.getElementById('btn-browse-folder');
+  const explorerModal = document.getElementById('explorer-modal');
+  const explorerList = document.getElementById('explorer-list');
+  const explorerSidebar = document.getElementById('explorer-sidebar');
+  const explorerPathInput = document.getElementById('explorer-path-input');
+  const explorerBtnGo = document.getElementById('explorer-btn-go');
+  const explorerBtnMkdir = document.getElementById('explorer-btn-mkdir');
+  const explorerBtnUp = document.getElementById('explorer-btn-up');
+  const explorerBtnSelect = document.getElementById('explorer-btn-select');
+  const explorerBtnCancel = document.getElementById('explorer-btn-cancel');
+  
+  let currentExplorerPath = '';
+  let currentExplorerParent = '';
+
+  async function loadDirectory(targetDir = '') {
+    explorerList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">正在加载...</div>';
+    try {
+      const res = await fetch(`/api/explorer/list?dir=${encodeURIComponent(targetDir)}`);
+      const data = await res.json();
+      if (!data.success) {
+        showToast(data.error || '无法读取目录', 'error');
+        explorerList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-1);">读取失败</div>';
+        return;
+      }
+      
+      currentExplorerPath = data.path;
+      currentExplorerParent = data.parent;
+      
+      // Update header
+      if (explorerPathInput) {
+        explorerPathInput.value = currentExplorerPath;
+      }
+      explorerBtnUp.style.opacity = currentExplorerParent === '' && currentExplorerPath === '' ? '0.3' : '1';
+      explorerBtnUp.style.pointerEvents = currentExplorerParent === '' && currentExplorerPath === '' ? 'none' : 'auto';
+
+      // Highlight active drive
+      if (explorerSidebar) {
+        const drives = explorerSidebar.querySelectorAll('.explorer-drive');
+        drives.forEach(drive => {
+          const driveName = drive.querySelector('span').textContent;
+          if (currentExplorerPath.toUpperCase().startsWith(driveName.toUpperCase())) {
+            drive.classList.add('active');
+          } else {
+            drive.classList.remove('active');
+          }
+        });
+      }
+
+      // Render folders
+      explorerList.innerHTML = '';
+      if (data.folders.length === 0) {
+        explorerList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">空文件夹</div>';
+      } else {
+        data.folders.forEach(folder => {
+          const item = document.createElement('div');
+          item.className = 'explorer-item';
+          item.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" color="#6366f1">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>${folder.name}</span>
+          `;
+          item.addEventListener('click', () => loadDirectory(folder.path));
+          explorerList.appendChild(item);
+        });
+      }
+    } catch (err) {
+      showToast('网络错误', 'error');
+    }
+  }
+
+  async function loadDrives() {
+    if (!explorerSidebar) return;
+    try {
+      const res = await fetch('/api/explorer/list?dir=');
+      const data = await res.json();
+      if (data.success && data.folders) {
+        explorerSidebar.innerHTML = '';
+        data.folders.forEach(folder => {
+          const item = document.createElement('div');
+          item.className = 'explorer-drive';
+          const name = folder.name.replace(/\\/g, '').replace(/\//g, '');
+          item.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+              <line x1="6" y1="12" x2="6.01" y2="12"></line>
+            </svg>
+            <span>${name || '根'}</span>
+          `;
+          item.addEventListener('click', () => loadDirectory(folder.path));
+          explorerSidebar.appendChild(item);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load drives', err);
+    }
+  }
+
+  if (btnBrowseFolder) {
+    btnBrowseFolder.addEventListener('click', () => {
+      explorerModal.classList.remove('hidden');
+      loadDrives();
+      loadDirectory(inputShareDir.value.trim());
+    });
+  }
+
+  if (explorerBtnGo && explorerPathInput) {
+    const triggerGo = () => {
+      const p = explorerPathInput.value.trim();
+      loadDirectory(p);
+    };
+    explorerBtnGo.addEventListener('click', triggerGo);
+    explorerPathInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') triggerGo();
+    });
+  }
+
+  if (explorerBtnUp) {
+    explorerBtnUp.addEventListener('click', () => {
+      loadDirectory(currentExplorerParent);
+    });
+  }
+
+  if (explorerBtnCancel) {
+    explorerBtnCancel.addEventListener('click', () => {
+      explorerModal.classList.add('hidden');
+    });
+    document.getElementById('explorer-backdrop').addEventListener('click', () => {
+      explorerModal.classList.add('hidden');
+    });
+  }
+
+  if (explorerBtnMkdir) {
+    explorerBtnMkdir.addEventListener('click', () => {
+      if (document.getElementById('new-folder-input')) return;
+      if (!currentExplorerPath) {
+        showToast('请先选择一个物理路径', 'error');
+        return;
+      }
+
+      const item = document.createElement('div');
+      item.className = 'explorer-item';
+      item.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" color="#6366f1">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <input type="text" id="new-folder-input" class="inline-input" placeholder="输入名称并回车" />
+      `;
+      if (explorerList.firstChild) {
+        explorerList.insertBefore(item, explorerList.firstChild);
+      } else {
+        explorerList.innerHTML = '';
+        explorerList.appendChild(item);
+      }
+      
+      const input = document.getElementById('new-folder-input');
+      input.focus();
+
+      const commit = async () => {
+        const name = input.value.trim();
+        if (!name) {
+          item.remove();
+          if (explorerList.children.length === 0) {
+            explorerList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">空文件夹</div>';
+          }
+          return;
+        }
+        input.disabled = true;
+        try {
+          const res = await fetch('/api/explorer/mkdir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parentPath: currentExplorerPath, folderName: name })
+          });
+          const data = await res.json();
+          if (data.success) {
+            loadDirectory(currentExplorerPath);
+            showToast('文件夹创建成功', 'success');
+          } else {
+            showToast(data.error || '创建失败', 'error');
+            item.remove();
+          }
+        } catch (err) {
+          showToast('网络错误', 'error');
+          item.remove();
+        }
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') item.remove();
+      });
+      input.addEventListener('blur', () => {
+        if (!input.disabled) item.remove();
+      });
+    });
+  }
+
+  if (explorerBtnSelect) {
+    explorerBtnSelect.addEventListener('click', () => {
+      if (currentExplorerPath) {
+        inputShareDir.value = currentExplorerPath;
+        explorerModal.classList.add('hidden');
+      } else {
+        showToast('请选择一个具体的文件夹', 'error');
+      }
+    });
+  }
+
   // --- Unified Chat Logic ---
   let renderedMessageIds = new Set();
   let lastMessagesKey = '';
