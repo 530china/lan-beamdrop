@@ -1,7 +1,7 @@
 const request = require('supertest');
 const express = require('express');
-const settingsRouter = require('../routes/settings');
-const config = require('../config');
+const settingsRouter = require('../../routes/settings');
+const config = require('../../config');
 const path = require('path');
 const fs = require('fs');
 
