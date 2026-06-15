@@ -36,24 +36,28 @@ router.use((req, res, next) => {
 
 // GET /api/settings - 获取设置
 router.get('/', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      shareDir: config.shareDir
-    }
-  });
+  try {
+    res.json({
+      success: true,
+      data: {
+        shareDir: config.shareDir,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: '获取设置失败' });
+  }
 });
 
 // POST /api/settings - 修改设置
 router.post('/', (req, res) => {
   const { shareDir } = req.body;
-  if (!shareDir || typeof shareDir !== 'string' || shareDir.trim() === '') {
-    return res.status(400).json({ success: false, error: '目录路径不能为空' });
+  if (!shareDir) {
+    return res.status(400).json({ success: false, error: '缺少 shareDir 参数' });
   }
 
   try {
-    updateSettings({ shareDir: shareDir.trim() });
-    res.json({ success: true, message: '设置更新成功' });
+    updateSettings({ shareDir });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
