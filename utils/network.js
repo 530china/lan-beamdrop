@@ -54,4 +54,20 @@ function getPrimaryIP() {
   return preferred ? preferred.address : ips[0].address;
 }
 
-module.exports = { getLocalIPs, getPrimaryIP };
+/**
+ * 判断当前请求的 IP 是否属于本机（严格全等比较，防止子串误匹配）
+ * 例如：服务端 IP 192.168.1.10 不应匹配客户端 IP 192.168.1.100
+ */
+function isLocalHostReq(req) {
+  let rawIp = req.ip || req.connection.remoteAddress || '';
+  // 剥离 IPv6 前缀 ::ffff:192.168.x.x → 192.168.x.x
+  if (rawIp.startsWith('::ffff:')) rawIp = rawIp.slice(7);
+
+  if (rawIp === '127.0.0.1' || rawIp === '::1') {
+    return true;
+  }
+  const localIps = getLocalIPs().map(n => n.address);
+  return localIps.includes(rawIp);
+}
+
+module.exports = { getLocalIPs, getPrimaryIP, isLocalHostReq };
