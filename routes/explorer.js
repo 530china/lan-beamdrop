@@ -3,22 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { getLocalIPs } = require('../utils/network');
-
-/**
- * 判断当前请求的 IP 是否属于本机
- */
-function isLocalHostReq(req) {
-  const reqIp = req.ip || req.connection.remoteAddress || '';
-  if (reqIp.includes('127.0.0.1') || reqIp === '::1') {
-    return true;
-  }
-  const localIps = getLocalIPs().map(n => n.address);
-  for (let ip of localIps) {
-    if (reqIp.includes(ip)) return true;
-  }
-  return false;
-}
+const { getLocalIPs, isLocalHostReq } = require('../utils/network');
 
 /**
  * 安全网关中间件：仅允许本机访问

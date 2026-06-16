@@ -20,8 +20,9 @@ describe('Files API Routes', () => {
     }
   });
 
-  afterAll(() => {
-    // 清理测试目录
+  afterAll(async () => {
+    // 等待 Windows 释放文件句柄
+    await new Promise(resolve => setTimeout(resolve, 200));
     if (fs.existsSync(TEST_DIR)) {
       fs.rmSync(TEST_DIR, { recursive: true, force: true });
     }
@@ -36,12 +37,17 @@ describe('Files API Routes', () => {
     }
   });
 
-  afterEach(() => {
-    // 清空目录里的文件但不删除目录本身
+  afterEach(async () => {
+    // 等待流式句柄释放（Windows 上 ReadStream.pipe 关闭有延迟）
+    await new Promise(resolve => setTimeout(resolve, 100));
     if (fs.existsSync(TEST_DIR)) {
       const files = fs.readdirSync(TEST_DIR);
       for (const file of files) {
-        fs.unlinkSync(path.join(TEST_DIR, file));
+        try {
+          fs.unlinkSync(path.join(TEST_DIR, file));
+        } catch (e) {
+          // Windows 文件句柄可能尚未释放，忽略清理错误
+        }
       }
     }
   });

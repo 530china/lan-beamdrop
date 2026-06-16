@@ -9,7 +9,7 @@ const { getSettings } = require('./utils/settings');
 // 初始化：加载持久化设置并覆盖默认 config
 getSettings();
 
-const { getPrimaryIP, getLocalIPs } = require('./utils/network');
+const { getPrimaryIP, getLocalIPs, isLocalHostReq } = require('./utils/network');
 const { startMdns } = require('./utils/mdns');
 const filesRouter = require('./routes/files');
 const clipboardRouter = require('./routes/clipboard');
@@ -48,21 +48,7 @@ app.use((req, res, next) => {
 // 设备信息
 app.get('/api/info', (req, res) => {
   const ip = getPrimaryIP();
-  
-  // 判断是否为本机请求
-  const reqIp = req.ip || req.connection.remoteAddress || '';
-  let isLocalHost = false;
-  if (reqIp.includes('127.0.0.1') || reqIp === '::1') {
-    isLocalHost = true;
-  } else {
-    const localIps = getLocalIPs().map(n => n.address);
-    for (let lip of localIps) {
-      if (reqIp.includes(lip)) {
-        isLocalHost = true;
-        break;
-      }
-    }
-  }
+  const isLocalHost = isLocalHostReq(req);
 
     const os = require('os');
     const osPlatform = os.platform() === 'win32' ? 'windows' : (os.platform() === 'darwin' ? 'mac' : 'linux');

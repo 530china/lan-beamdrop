@@ -2,24 +2,7 @@ const express = require('express');
 const router = express.Router();
 const config = require('../config');
 const { updateSettings } = require('../utils/settings');
-const { getLocalIPs } = require('../utils/network');
-
-/**
- * 判断当前请求的 IP 是否属于本机
- */
-function isLocalHostReq(req) {
-  // express中，ip可能带有前缀如 ::ffff:127.0.0.1
-  const reqIp = req.ip || req.connection.remoteAddress || '';
-  if (reqIp.includes('127.0.0.1') || reqIp === '::1') {
-    return true;
-  }
-  const localIps = getLocalIPs().map(n => n.address);
-  // 如果请求的 IP 是本机的内网 IP 之一，也算作本机请求
-  for (let ip of localIps) {
-    if (reqIp.includes(ip)) return true;
-  }
-  return false;
-}
+const { isLocalHostReq } = require('../utils/network');
 
 /**
  * 安全网关中间件：仅允许本机访问
