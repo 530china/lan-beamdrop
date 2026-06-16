@@ -64,16 +64,20 @@ app.get('/api/info', (req, res) => {
     }
   }
 
-  res.json({
-    success: true,
-    deviceName: config.deviceName,
-    platform: 'windows',
-    ip: ip,
+    const os = require('os');
+    const osPlatform = os.platform() === 'win32' ? 'windows' : (os.platform() === 'darwin' ? 'mac' : 'linux');
+
+    res.json({
+      success: true,
+      deviceName: config.deviceName,
+      platform: osPlatform,
+      ip: ip,
     port: config.port,
     shareDir: config.shareDir,
     version: '1.0.0',
     url: `http://${ip}:${config.port}`,
-    isLocalHost: isLocalHost
+    isLocalHost: isLocalHost,
+    maxFileSize: config.maxFileSize
   });
 });
 

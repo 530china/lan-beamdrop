@@ -13,6 +13,8 @@ describe('Settings persistence', () => {
     }
     // Reset config overrides
     config.shareDir = path.join(require('os').homedir(), 'LANBeamDrop');
+    config.port = 8765;
+    config.maxFileSize = 2 * 1024 * 1024 * 1024;
   });
 
   afterAll(() => {
@@ -41,6 +43,19 @@ describe('Settings persistence', () => {
     // Check if subsequent getSettings reads it correctly
     const settings = getSettings();
     expect(settings.shareDir).toBe(newDir);
+  });
+
+  it('should update port and maxFileSize and save to settings.json', () => {
+    updateSettings({ port: 9000, maxFileSize: 5368709120 });
+    
+    // Check in-memory config update
+    expect(config.port).toBe(9000);
+    expect(config.maxFileSize).toBe(5368709120);
+    
+    // Check file update
+    const fileContent = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    expect(fileContent.port).toBe(9000);
+    expect(fileContent.maxFileSize).toBe(5368709120);
   });
 
   it('should create the directory if it does not exist', () => {

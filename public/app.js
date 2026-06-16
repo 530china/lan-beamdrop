@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveSettings = document.getElementById('btn-save-settings');
   const btnCloseSettings = document.getElementById('btn-close-settings');
   const inputShareDir = document.getElementById('setting-share-dir');
+  const inputMaxFileSize = document.getElementById('setting-max-file-size');
+  const inputPort = document.getElementById('setting-port');
 
   // --- Init ---
   fetchDeviceInfo();
@@ -55,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const myDeviceName = getDeviceName();
 
+  let serverMaxFileSize = 0;
+
   // --- Device Info ---
   async function fetchDeviceInfo() {
     try {
@@ -62,11 +66,18 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         headerDeviceName.textContent = data.deviceName;
+        serverMaxFileSize = data.maxFileSize || 0;
         
         // Settings Visibility
         if (data.isLocalHost) {
           btnSettings.classList.remove('hidden');
           inputShareDir.value = data.shareDir || '';
+          if (inputMaxFileSize && data.maxFileSize) {
+            inputMaxFileSize.value = Math.round(data.maxFileSize / (1024 * 1024 * 1024));
+          }
+          if (inputPort && data.port) {
+            inputPort.value = data.port;
+          }
         }
       }
     } catch (err) {
@@ -97,16 +108,26 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSaveSettings.textContent = '保存中...';
     btnSaveSettings.disabled = true;
     
+    const payload = { shareDir: newDir };
+    if (inputMaxFileSize && inputMaxFileSize.value) {
+      payload.maxFileSize = parseInt(inputMaxFileSize.value, 10) * 1024 * 1024 * 1024;
+    }
+    if (inputPort && inputPort.value) {
+      payload.port = parseInt(inputPort.value, 10);
+    }
+    
     try {
       const res = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shareDir: newDir })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
         showToast('设置保存成功', 'success');
         closeSettings();
+        // 重新拉取最新的设备信息（如最新的最大文件限制）
+        fetchDeviceInfo();
         // 刷新消息流
         fetchUnifiedMessages();
       } else {
@@ -348,8 +369,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Unified Chat Logic ---
   let renderedMessageIds = new Set();
+  const uploadingFiles = new Map(); // uploadId -> {id, name, progress, timestamp}
+  const activeXhrs = new Map(); // uploadId -> XMLHttpRequest();
   let lastMessagesKey = '';
-  const uploadingFiles = new Map();
   
   function scrollToBottom() {
     if(chatMessages) {
@@ -402,6 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
             type: 'upload',
             content: up.name,
             fileSize: '上传中...',
+            speed: up.speed,
             clientId: myClientId,
             deviceName: myDeviceName,
             timestamp: up.timestamp,
@@ -415,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
       history = history.slice(-100);
       
       // Check if anything changed
-      const currentKey = history.map(h => h.id + '_' + (h.progress || 0)).join(',');
+      const currentKey = history.map(h => h.id + '_' + (h.progress || 0) + '_' + (h.speed || '')).join(',');
       if (currentKey !== lastMessagesKey) {
         lastMessagesKey = currentKey;
         renderChatHistory(history);
@@ -488,9 +511,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="file-icon-large">${icon}</div>
             <div class="file-details">
               <span class="file-name">${escapeHtml(msg.content)}</span>
-              <span class="file-size">${msg.fileSize}</span>
-              <div class="upload-progress-container">
-                 <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
+              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+                <span class="file-size">${msg.fileSize}</span>
+                <span id="speed_${msg.id}" style="color: var(--primary-color);">${msg.speed || ''}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
+                   <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
+                </div>
+                <button class="btn-cancel-upload" data-id="${msg.id}" title="取消上传" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">✖</button>
               </div>
             </div>
           </div>
@@ -564,6 +593,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
       
+      // Add cancel upload listeners
+      const cancelBtns = chatMessages.querySelectorAll('.btn-cancel-upload');
+      cancelBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const uploadId = btn.dataset.id;
+          const xhr = activeXhrs.get(uploadId);
+          if (xhr) xhr.abort();
+        });
+      });
+      
       if (isAtBottom || renderedMessageIds.size <= history.length) {
         scrollToBottom();
       }
@@ -586,8 +626,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function uploadFileAsMessage(file) {
-    const uploadId = 'upload_' + Date.now() + '_' + file.name;
-    const upObj = { id: uploadId, name: file.name, progress: 0, timestamp: new Date().toISOString() };
+    if (serverMaxFileSize && file.size > serverMaxFileSize) {
+      showToast(`文件超过上限，请在服务端的设置中修改限制`, 'error');
+      return;
+    }
+
+    // Sanitize filename to avoid spaces/special characters breaking DOM IDs
+    const safeName = file.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const uploadId = 'upload_' + Date.now() + '_' + safeName;
+    const upObj = { id: uploadId, name: file.name, progress: 0, speed: '\u8ba1\u7b97\u4e2d...', timestamp: new Date().toISOString() };
     uploadingFiles.set(uploadId, upObj);
     fetchUnifiedMessages().then(() => scrollToBottom());
     
@@ -595,31 +642,74 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('files', file);
 
     const xhr = new XMLHttpRequest();
+    activeXhrs.set(uploadId, xhr);
     xhr.open('POST', '/api/files/upload', true);
+
+    let lastLoaded = 0;
+    let lastTime = Date.now();
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         const p = Math.round((e.loaded / e.total) * 100);
         upObj.progress = p;
+        
+        const now = Date.now();
+        const diffTime = now - lastTime;
+        if (diffTime >= 500 || e.loaded === e.total) {
+          const diffLoaded = e.loaded - lastLoaded;
+          const speedBps = (diffLoaded / diffTime) * 1000;
+          upObj.speed = formatSize(speedBps) + '/s';
+          lastLoaded = e.loaded;
+          lastTime = now;
+        }
+
         const bar = document.getElementById(`prog_${uploadId}`);
         if(bar) bar.style.width = p + '%';
+        
+        const speedEl = document.getElementById(`speed_${uploadId}`);
+        if(speedEl) speedEl.textContent = upObj.speed;
       }
     };
 
     xhr.onload = () => {
-      uploadingFiles.delete(uploadId);
+      activeXhrs.delete(uploadId);
       if (xhr.status === 200) {
+        upObj.progress = 100;
+        const bar = document.getElementById(`prog_${uploadId}`);
+        if(bar) bar.style.width = '100%';
+        
         showToast(`发送成功: ${file.name}`, 'success');
         addLog(`发送文件: ${file.name}`);
+        
+        // Keep the progress bar visible for 1 second before converting to a file bubble
+        setTimeout(() => {
+          uploadingFiles.delete(uploadId);
+          fetchUnifiedMessages();
+        }, 1000);
       } else {
-        showToast(`发送失败: ${file.name}`, 'error');
+        uploadingFiles.delete(uploadId);
+        let errorMsg = `发送失败: ${file.name}`;
+        try {
+          const res = JSON.parse(xhr.responseText);
+          if (res.error) errorMsg = `失败: ${res.error}`;
+        } catch (e) { /* ignore */ }
+        showToast(errorMsg, 'error');
+        fetchUnifiedMessages();
       }
-      fetchUnifiedMessages();
     };
 
     xhr.onerror = () => {
+      activeXhrs.delete(uploadId);
       uploadingFiles.delete(uploadId);
       showToast(`发送出错: ${file.name}`, 'error');
+      fetchUnifiedMessages();
+    };
+
+    xhr.onabort = () => {
+      activeXhrs.delete(uploadId);
+      uploadingFiles.delete(uploadId);
+      showToast(`已取消上传: ${file.name}`, 'info');
+      addLog(`取消发送: ${file.name}`);
       fetchUnifiedMessages();
     };
 

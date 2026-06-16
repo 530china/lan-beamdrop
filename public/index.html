@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=0.1.7">
 </head>
 <body>
   <!-- Toast 通知容器 -->
@@ -117,7 +117,14 @@
         <!-- 基本设置 Tab -->
         <div class="settings-tab-content" id="tab-general">
           <h3>基本设置</h3>
-          <p class="settings-desc" style="color: var(--text-muted); font-style: italic;">(更多主机高级设置功能正在开发中...)</p>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label for="setting-max-file-size">⬆️ 单次最大上传限制 (GB)</label>
+            <input type="number" id="setting-max-file-size" min="1" step="1" placeholder="默认 100" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+          </div>
+          <div class="form-group">
+            <label for="setting-port">🔌 服务端口号 <span style="color: #ef4444; font-size: 0.8em;">(修改后需重启生效)</span></label>
+            <input type="number" id="setting-port" min="1024" max="65535" placeholder="默认 8765" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+          </div>
         </div>
         
         <div class="settings-toolbar">
@@ -164,6 +171,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=0.1.7"></script>
 </body>
 </html>

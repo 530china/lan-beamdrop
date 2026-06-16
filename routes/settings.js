@@ -41,6 +41,8 @@ router.get('/', (req, res) => {
       success: true,
       data: {
         shareDir: config.shareDir,
+        port: config.port,
+        maxFileSize: config.maxFileSize
       }
     });
   } catch (err) {
@@ -50,14 +52,19 @@ router.get('/', (req, res) => {
 
 // POST /api/settings - 修改设置
 router.post('/', (req, res) => {
-  const { shareDir } = req.body;
-  if (!shareDir) {
-    return res.status(400).json({ success: false, error: '缺少 shareDir 参数' });
+  const { shareDir, port, maxFileSize } = req.body;
+  if (!shareDir && !port && !maxFileSize) {
+    return res.status(400).json({ success: false, error: '缺少配置参数' });
   }
 
   try {
-    updateSettings({ shareDir });
-    res.json({ success: true });
+    const newSettings = {};
+    if (shareDir) newSettings.shareDir = shareDir;
+    if (port) newSettings.port = port;
+    if (maxFileSize) newSettings.maxFileSize = maxFileSize;
+    
+    updateSettings(newSettings);
+    res.json({ success: true, message: '设置已保存' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

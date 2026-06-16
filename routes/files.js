@@ -18,17 +18,23 @@ const storage = multer.diskStorage({
     cb(null, config.shareDir);
   },
   filename: (req, file, cb) => {
-    // 保留原始文件名，处理中文编码
-    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    // 如果文件名已存在，添加时间戳前缀
+    // 提取原始文件名，处理中文编码，并强制只取 Basename 防止目录穿越漏洞 (Path Traversal)
+    let originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    originalName = path.basename(originalName);
+    
+    // 跨平台字符净化：剔除 Windows 不支持的非法字符，确保 Mac 上传的文件在 Win 上不崩
+    originalName = originalName.replace(/[<>:"\/\\|?*]/g, '_');
+    
+    // 如果文件名已存在，或者正有一个同名文件在上传，添加时间戳前缀
     const targetPath = path.join(config.shareDir, originalName);
-    if (fs.existsSync(targetPath)) {
+    const uploadingPath = targetPath + '.uploading';
+    if (fs.existsSync(targetPath) || fs.existsSync(uploadingPath)) {
       const ext = path.extname(originalName);
       const base = path.basename(originalName, ext);
       const timestamp = Date.now();
-      cb(null, `${base}_${timestamp}${ext}`);
+      cb(null, `${base}_${timestamp}${ext}.uploading`);
     } else {
-      cb(null, originalName);
+      cb(null, `${originalName}.uploading`);
     }
   },
 });
@@ -47,15 +53,33 @@ const upload = multer({
 router.get('/', (req, res) => {
   try {
     const items = fs.readdirSync(config.shareDir, { withFileTypes: true });
-    const files = items.map((item) => {
+    const files = [];
+    const now = Date.now();
+    
+    items.forEach((item) => {
       const filePath = path.join(config.shareDir, item.name);
-      const stats = fs.statSync(filePath);
-      return {
-        name: item.name,
-        size: stats.size,
-        mtime: stats.mtime.toISOString(),
-        isDirectory: item.isDirectory(),
-      };
+      
+      // Handle temporary uploading files
+      if (item.name.endsWith('.uploading')) {
+        try {
+          const stats = fs.statSync(filePath);
+          // Cleanup orphaned uploads older than 24 hours
+          if (now - stats.mtimeMs > 24 * 60 * 60 * 1000) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (e) { /* ignore */ }
+        return; // Do not expose to clients
+      }
+
+      try {
+        const stats = fs.statSync(filePath);
+        files.push({
+          name: item.name,
+          size: stats.size,
+          mtime: stats.mtime.toISOString(),
+          isDirectory: item.isDirectory(),
+        });
+      } catch (e) { /* ignore stat errors for deleted files */ }
     });
 
     // 按修改时间倒序（最新在前）
@@ -142,17 +166,41 @@ router.get('/download/:filename', (req, res) => {
  * POST /api/files/upload
  * 上传文件（支持多文件）
  */
-router.post('/upload', upload.array('files', 20), (req, res) => {
+router.post('/upload', (req, res, next) => {
+  // 动态检查 Content-Length，实现实时热重载上限拦截
+  const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+  // 允许 1MB 的 FormData 冗余开销
+  if (config.maxFileSize && contentLength > config.maxFileSize + 1 * 1024 * 1024) {
+    return res.status(413).json({ 
+      success: false, 
+      error: `文件大小超过限制（最大 ${Math.round(config.maxFileSize / 1024 / 1024 / 1024)}GB）` 
+    });
+  }
+  next();
+}, upload.array('files', 20), (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, error: '未选择文件' });
     }
 
-    const uploaded = req.files.map((f) => ({
-      name: f.filename,
-      size: f.size,
-      path: f.path,
-    }));
+    const uploaded = req.files.map((f) => {
+      const finalPath = f.path.replace(/\.uploading$/, '');
+      const finalName = f.filename.replace(/\.uploading$/, '');
+      
+      try {
+        fs.renameSync(f.path, finalPath);
+      } catch (renameErr) {
+        console.error('[文件] 重命名失败:', renameErr.message);
+        // Fallback to original path if rename fails
+        return { name: f.filename, size: f.size, path: f.path };
+      }
+      
+      return {
+        name: finalName,
+        size: f.size,
+        path: finalPath,
+      };
+    });
 
     console.log(`[文件] 收到 ${uploaded.length} 个文件:`, uploaded.map((f) => f.name).join(', '));
 

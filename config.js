@@ -11,8 +11,8 @@ module.exports = {
   // 设备名称（默认使用电脑主机名）
   deviceName: os.hostname(),
 
-  // 最大上传文件大小（bytes）— 2GB
-  maxFileSize: 2 * 1024 * 1024 * 1024,
+  // 最大上传文件大小（bytes）— 100GB
+  maxFileSize: 100 * 1024 * 1024 * 1024,
 
   // mDNS 服务类型
   mdnsServiceType: 'lanbeamdrop',
