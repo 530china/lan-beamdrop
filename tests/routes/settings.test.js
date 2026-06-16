@@ -30,6 +30,8 @@ describe('Settings API Security & Functionality', () => {
       fs.unlinkSync(settingsPath);
     }
     config.shareDir = path.join(require('os').homedir(), 'LANBeamDrop');
+    config.port = 8765;
+    config.maxFileSize = 2 * 1024 * 1024 * 1024;
   });
 
   afterAll(() => {
@@ -48,10 +50,11 @@ describe('Settings API Security & Functionality', () => {
   });
 
   it('should block non-localhost IPs from updating settings', async () => {
+    const mockDir = path.join(require('os').tmpdir(), 'test');
     const res = await request(app)
       .post('/api/settings')
       .set('x-simulated-ip', '192.168.1.100')
-      .send({ shareDir: 'C:\\test' });
+      .send({ shareDir: mockDir });
     expect(res.status).toBe(403);
   });
 
@@ -62,6 +65,8 @@ describe('Settings API Security & Functionality', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.shareDir).toBe(config.shareDir);
+    expect(res.body.data.port).toBe(config.port);
+    expect(res.body.data.maxFileSize).toBe(config.maxFileSize);
   });
 
   it('should allow localhost to update settings', async () => {
@@ -80,5 +85,18 @@ describe('Settings API Security & Functionality', () => {
     if (fs.existsSync(newDir)) {
       fs.rmdirSync(newDir);
     }
+  });
+
+  it('should allow localhost to update port and maxFileSize', async () => {
+    const res = await request(app)
+      .post('/api/settings')
+      .set('x-simulated-ip', '127.0.0.1')
+      .send({ port: 9000, maxFileSize: 5368709120 });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    
+    // Check config update
+    expect(config.port).toBe(9000);
+    expect(config.maxFileSize).toBe(5368709120);
   });
 });

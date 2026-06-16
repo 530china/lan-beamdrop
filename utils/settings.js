@@ -23,9 +23,9 @@ function getSettings() {
   }
 
   // 合并到当前内存 config 中
-  if (settings.shareDir) {
-    config.shareDir = settings.shareDir;
-  }
+  if (settings.shareDir) config.shareDir = settings.shareDir;
+  if (settings.port) config.port = parseInt(settings.port, 10);
+  if (settings.maxFileSize) config.maxFileSize = parseInt(settings.maxFileSize, 10);
 
   return config;
 }
@@ -61,6 +61,9 @@ function updateSettings(newSettings) {
       }
     }
   }
+  
+  if (settings.port) config.port = parseInt(settings.port, 10);
+  if (settings.maxFileSize) config.maxFileSize = parseInt(settings.maxFileSize, 10);
 
   // 写入文件
   try {
