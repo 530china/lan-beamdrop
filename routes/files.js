@@ -171,6 +171,8 @@ router.post('/upload', (req, res, next) => {
   const contentLength = parseInt(req.headers['content-length'] || '0', 10);
   // 允许 1MB 的 FormData 冗余开销
   if (config.maxFileSize && contentLength > config.maxFileSize + 1 * 1024 * 1024) {
+    // 静默排空请求流，防止 Unix 系统 (macOS/Linux) 因管道未读完而抛出 EPIPE
+    req.resume();
     return res.status(413).json({ 
       success: false, 
       error: `文件大小超过限制（最大 ${Math.round(config.maxFileSize / 1024 / 1024 / 1024)}GB）` 
