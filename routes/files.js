@@ -171,10 +171,20 @@ router.post('/upload', (req, res, next) => {
   const contentLength = parseInt(req.headers['content-length'] || '0', 10);
   // 允许 1MB 的 FormData 冗余开销
   if (config.maxFileSize && contentLength > config.maxFileSize + 1 * 1024 * 1024) {
-    return res.status(413).json({ 
-      success: false, 
-      error: `文件大小超过限制（最大 ${Math.round(config.maxFileSize / 1024 / 1024 / 1024)}GB）` 
+    // 必须先完整排空请求流，再发送响应，否则 macOS/Linux 会因管道未读完而 ECONNRESET
+    req.resume();
+    req.on('end', () => {
+      res.status(413).json({ 
+        success: false, 
+        error: `文件大小超过限制（最大 ${Math.round(config.maxFileSize / 1024 / 1024 / 1024)}GB）` 
+      });
     });
+    req.on('error', () => {
+      if (!res.headersSent) {
+        res.status(413).json({ success: false, error: '文件大小超过限制' });
+      }
+    });
+    return;
   }
   next();
 }, upload.array('files', 20), (req, res) => {
