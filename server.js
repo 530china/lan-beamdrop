@@ -52,6 +52,7 @@ app.get('/api/info', (req, res) => {
 
     const os = require('os');
     const osPlatform = os.platform() === 'win32' ? 'windows' : (os.platform() === 'darwin' ? 'mac' : 'linux');
+    const pkg = require('./package.json');
 
     res.json({
       success: true,
@@ -60,7 +61,7 @@ app.get('/api/info', (req, res) => {
       ip: ip,
     port: config.port,
     shareDir: config.shareDir,
-    version: '1.0.0',
+    version: pkg.version,
     url: `http://${ip}:${config.port}`,
     isLocalHost: isLocalHost,
     maxFileSize: config.maxFileSize
