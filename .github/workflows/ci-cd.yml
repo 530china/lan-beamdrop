@@ -52,6 +52,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Inject version from tag into package.json
+        run: |
+          # 提取 tag 名字并去掉前面的 v（例如 v0.1.2 -> 0.1.2）
+          VERSION=${GITHUB_REF_NAME#v}
+          # 强制修改 package.json 中的 version 字段，但不生成 git commit
+          npm version $VERSION --no-git-tag-version
+          echo "Injected version: $VERSION"
+
       - name: Build executables with pkg
         run: npm run build
 
