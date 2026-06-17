@@ -15,6 +15,7 @@ const filesRouter = require('./routes/files');
 const clipboardRouter = require('./routes/clipboard');
 const settingsRouter = require('./routes/settings');
 const explorerRouter = require('./routes/explorer');
+const diagnosticsRouter = require('./routes/diagnostics');
 
 const app = express();
 
@@ -79,6 +80,14 @@ app.use('/api/settings', settingsRouter);
 
 // 文件浏览器 API
 app.use('/api/explorer', explorerRouter);
+
+// 网络诊断 API (仅限本机)
+app.use('/api/diagnostics', (req, res, next) => {
+  if (!isLocalHostReq(req)) {
+    return res.status(403).json({ success: false, error: 'Access Denied: Localhost only' });
+  }
+  next();
+}, diagnosticsRouter);
 
 // SPA 回退：所有非 API 请求返回 index.html
 app.get('*', (req, res) => {

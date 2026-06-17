@@ -158,6 +158,78 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Diagnostics Logic ---
+  const btnDiagArp = document.getElementById('btn-diag-arp');
+  const tbodyDiagArp = document.getElementById('diag-arp-tbody');
+  const inputDiagPing = document.getElementById('input-diag-ping');
+  const btnDiagPing = document.getElementById('btn-diag-ping');
+  const preDiagPingResult = document.getElementById('diag-ping-result');
+
+  if (btnDiagArp) {
+    btnDiagArp.addEventListener('click', async () => {
+      btnDiagArp.textContent = '扫描中...';
+      btnDiagArp.disabled = true;
+      try {
+        const res = await fetch('/api/diagnostics/arp');
+        const data = await res.json();
+        tbodyDiagArp.innerHTML = '';
+        if (data.success && data.devices.length > 0) {
+          data.devices.forEach(dev => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace;">${dev.ip}</td>
+              <td style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); font-family: monospace; color: #888;">${dev.mac}</td>
+              <td style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <button class="btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="document.getElementById('input-diag-ping').value='${dev.ip}'; document.getElementById('btn-diag-ping').click();">Ping</button>
+              </td>
+            `;
+            tbodyDiagArp.appendChild(tr);
+          });
+        } else {
+          tbodyDiagArp.innerHTML = `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #888;">未能扫描到设备或无权限</td></tr>`;
+        }
+      } catch (err) {
+        tbodyDiagArp.innerHTML = `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #ef4444;">扫描失败: ${err.message}</td></tr>`;
+      } finally {
+        btnDiagArp.textContent = '🔍 扫描局域网设备 (ARP)';
+        btnDiagArp.disabled = false;
+      }
+    });
+  }
+
+  if (btnDiagPing) {
+    btnDiagPing.addEventListener('click', async () => {
+      const ip = inputDiagPing.value.trim();
+      if (!ip) return;
+      btnDiagPing.textContent = 'Ping...';
+      btnDiagPing.disabled = true;
+      preDiagPingResult.style.display = 'block';
+      preDiagPingResult.textContent = '探测中...';
+      preDiagPingResult.style.color = '#fff';
+      
+      try {
+        const res = await fetch(`/api/diagnostics/ping?ip=${encodeURIComponent(ip)}`);
+        const data = await res.json();
+        if (data.success) {
+          preDiagPingResult.style.color = data.reachable ? '#10b981' : '#ef4444';
+          let diagText = data.reachable 
+            ? `✅ 连通成功！\n如果仍打不开网页，说明物理网络正常，极大概率是电脑 Windows 防火墙拦截了本程序的端口！请去防火墙放行该程序。` 
+            : `❌ 连通失败，目标不可达。\n如果在上面的 ARP 表中能看到这个 IP，但 Ping 不通，极大可能是路由器的 AP 隔离（双频隔离）阻止了通信！`;
+          preDiagPingResult.textContent = `${diagText}\n\n[底层输出]:\n${data.log}`;
+        } else {
+          preDiagPingResult.style.color = '#ef4444';
+          preDiagPingResult.textContent = data.error || '请求失败';
+        }
+      } catch (err) {
+        preDiagPingResult.style.color = '#ef4444';
+        preDiagPingResult.textContent = `请求出错: ${err.message}`;
+      } finally {
+        btnDiagPing.textContent = 'Ping 测试';
+        btnDiagPing.disabled = false;
+      }
+    });
+  }
+
   const btnBrowseFolder = document.getElementById('btn-browse-folder');
   const explorerModal = document.getElementById('explorer-modal');
   const explorerList = document.getElementById('explorer-list');

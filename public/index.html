@@ -96,6 +96,7 @@
         <ul class="settings-menu" id="settings-menu">
           <li class="active" data-tab="tab-storage">存储设置</li>
           <li data-tab="tab-general">基本设置</li>
+          <li data-tab="tab-diagnostics">网络诊断</li>
         </ul>
       </div>
       
@@ -124,6 +125,40 @@
           <div class="form-group">
             <label for="setting-port">🔌 服务端口号 <span style="color: #ef4444; font-size: 0.8em;">(修改后需重启生效)</span></label>
             <input type="number" id="setting-port" min="1024" max="65535" placeholder="默认 8765" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white;">
+          </div>
+        </div>
+        
+        <!-- 网络诊断 Tab -->
+        <div class="settings-tab-content" id="tab-diagnostics">
+          <h3>网络诊断 (PC 端专用)</h3>
+          <p class="settings-desc">如果手机无法连接，请在此扫描局域网物理层设备，或主动 Ping 测试连通性。</p>
+          
+          <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+            <button id="btn-diag-arp" class="btn-primary" style="flex: 1;">🔍 扫描局域网设备 (ARP)</button>
+          </div>
+          
+          <div class="diag-table-container" style="max-height: 200px; overflow-y: auto; margin-bottom: 16px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+            <table style="width: 100%; text-align: left; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                  <th style="padding: 8px;">IP 地址</th>
+                  <th style="padding: 8px;">MAC 地址</th>
+                  <th style="padding: 8px;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="diag-arp-tbody">
+                <tr><td colspan="3" style="padding: 8px; text-align: center; color: #888;">暂无数据，请点击扫描</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="form-group">
+            <label>⚡ 定点 Ping 测试</label>
+            <div class="input-with-btn">
+              <input type="text" id="input-diag-ping" placeholder="输入手机 IP，例如 192.168.1.100">
+              <button id="btn-diag-ping" class="btn-secondary" style="white-space: nowrap;">Ping 测试</button>
+            </div>
+            <pre id="diag-ping-result" style="margin-top: 8px; padding: 8px; background: #000; border-radius: 4px; color: #10b981; font-size: 12px; display: none; white-space: pre-wrap; word-wrap: break-word;"></pre>
           </div>
         </div>
         
