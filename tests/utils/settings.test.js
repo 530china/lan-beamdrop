@@ -3,7 +3,7 @@ const path = require('path');
 const { getSettings, updateSettings } = require('../../utils/settings');
 const config = require('../../config');
 
-const settingsPath = path.join(__dirname, '../../settings.json');
+const settingsPath = path.join(__dirname, '../../settings_test.json');
 
 describe('Settings persistence', () => {
   beforeEach(() => {
