@@ -66,6 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (res.ok) {
         const data = await res.json();
         headerDeviceName.textContent = data.deviceName;
+        const appVersionEl = document.getElementById('app-version');
+        if (appVersionEl) appVersionEl.textContent = 'v' + (data.version || '0.1.0');
         serverMaxFileSize = data.maxFileSize || 0;
         
         // Settings Visibility

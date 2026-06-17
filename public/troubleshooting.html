@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>网络连接排障指南 - LANBeamDrop</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f9fafb;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    h1 {
+      color: #1f2937;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 10px;
+      margin-top: 0;
+    }
+    h2 {
+      color: #4f46e5;
+      margin-top: 30px;
+    }
+    h3 {
+      color: #111827;
+    }
+    .alert {
+      background-color: #fef2f2;
+      border-left: 4px solid #ef4444;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .alert-success {
+      background-color: #ecfdf5;
+      border-left: 4px solid #10b981;
+    }
+    .alert-warning {
+      background-color: #fffbeb;
+      border-left: 4px solid #f59e0b;
+    }
+    .conclusion {
+      font-weight: bold;
+      color: #b91c1c;
+      margin-bottom: 10px;
+    }
+    .solution {
+      background-color: #eff6ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    .shortcut {
+      background-color: #1f2937;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 40px;
+    }
+    .shortcut h2 {
+      color: #fbbf24;
+      margin-top: 0;
+      border-bottom: 1px solid #4b5563;
+      padding-bottom: 10px;
+    }
+    code {
+      background-color: #e5e7eb;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      color: #db2777;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    li {
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📱 手机连不上？网络排障指南</h1>
+    <p>当您在电脑（PC）上运行本程序后，如果遇到 <strong>“手机或其他设备打不开网页”</strong>、<strong>“一直在加载中”</strong> 的情况，请按照以下步骤进行一分钟快速排查：</p>
+
+    <h2>第一步：确认基础网络环境</h2>
+    <ul>
+      <li>确保电脑和手机连接的是 <strong>同一个路由器</strong> 的 Wi-Fi 或网线。</li>
+      <li>确保电脑 <strong>没有开启</strong> VPN、代理软件（如 Clash、V2Ray 等可能会接管局域网流量）。</li>
+      <li>核对手机的 IP 地址前三段是否与电脑的 IP 一致（例如电脑是 <code>192.168.31.50</code>，手机应该是 <code>192.168.31.X</code>）。</li>
+    </ul>
+
+    <h2>第二步：使用内建“网络诊断”工具</h2>
+    <p>如果基础网络确认无误，但依然连不上。请在 <strong>电脑端</strong> 的主界面点击右上角 <strong>设置 ⚙️ -> 网络诊断</strong> 面板：<br>
+      点击 <strong>🔍 扫描局域网设备 (ARP)</strong> 按钮，并在下方列表中寻找你手机的 IP 地址。
+    </p>
+
+    <div class="alert alert-warning">
+      <h3>场景 A：列表中【找不到】手机的 IP 地址</h3>
+      <div class="conclusion">结论：物理网络被阻断（极大概率是路由器的锅）</div>
+      <ul>
+        <li><strong>原因 1：路由器开启了“AP 隔离”或“访客网络”</strong>。许多路由器为了安全，默认禁止 Wi-Fi 连接的设备互相通信。</li>
+        <li><strong>原因 2：双频隔离</strong>。你的电脑连的是 2.4G Wi-Fi，手机连的是 5G Wi-Fi，且路由器没有将两个频段桥接。</li>
+        <li><strong>原因 3：公共网络限制</strong>。如果是公司、学校、咖啡馆的 Wi-Fi，通常会强制在底层隔离所有设备。</li>
+      </ul>
+      <div class="solution">
+        <strong>👉 解决办法：</strong>
+        <ol>
+          <li>登录路由器后台，关闭“AP隔离 / 无线隔离”。</li>
+          <li>让电脑和手机连接同一个 Wi-Fi 频段（都连 5G）。</li>
+          <li><strong>终极必杀技：直接用手机开热点，让电脑连接手机的热点，绝对能通！</strong></li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <h3>场景 B：列表中【找到了】手机 IP，点击 Ping 测试【连通失败】</h3>
+      <div class="conclusion">结论：网卡互相看见了，但数据包被丢弃（依然是路由器或网络的锅）</div>
+      <p><strong>原因：</strong> 与场景 A 类似，部分路由器允许 ARP 广播寻找设备，但在实际传输数据（ICMP/TCP）时进行了拦截。</p>
+      <div class="solution">
+        <strong>👉 解决办法：</strong> 同场景 A（关隔离 / 连同一个频段 / 手机开热点）。
+      </div>
+    </div>
+
+    <div class="alert alert-success">
+      <h3 style="color: #047857;">场景 C：Ping 测试【✅ 连通成功】，但手机依然打不开网页！</h3>
+      <div class="conclusion" style="color: #047857;">结论：网络完美畅通，100% 是电脑 Windows 防火墙拦截了本程序！</div>
+      <p><strong>原因：</strong> Windows 默认的防火墙策略极其严格。当本程序（EXE）尝试在局域网开放端口提供服务时，被 Windows Defender 默默拦截了外网（手机）发进来的请求。</p>
+      <div class="solution" style="background-color: #d1fae5; color: #065f46;">
+        <strong>👉 解决办法（防火墙放行）：</strong>
+        <ol>
+          <li>按下键盘 <code>Win</code> 键，搜索并打开 <strong>Windows Defender 防火墙</strong>。</li>
+          <li>点击左侧的 <strong>允许应用或功能通过 Windows Defender 防火墙</strong>。</li>
+          <li>点击右上角的 <strong>更改设置</strong>（需要管理员权限）。</li>
+          <li>在列表中向下滚动，找到本程序（名字可能是 <code>lan-beamdrop.exe</code> 或 <code>Node.js</code>）。</li>
+          <li>必须将其右侧的 <strong>“专用”</strong> 和 <strong>“公用”</strong> 两个复选框 <strong>全部打勾 ✅</strong>。</li>
+          <li>点击确定保存。手机刷新网页，瞬间秒开！</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="shortcut">
+      <h2>💡 终极省流排障口诀：</h2>
+      <ul>
+        <li><strong>扫不到手机</strong> ➡️ 路由器隔离了，手机开热点给电脑连！</li>
+        <li><strong>能扫到但 Ping 不通</strong> ➡️ 路由器拦截了，手机开热点给电脑连！</li>
+        <li><strong>能 Ping 通但网页打不开</strong> ➡️ 电脑防火墙拦截了，去控制面板放行这个 EXE！</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

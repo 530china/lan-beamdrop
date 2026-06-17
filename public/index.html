@@ -26,7 +26,7 @@
           <path d="M12 2L12 22M12 2L8 6M12 2L16 6M12 22L8 18M12 22L16 18"/>
           <path d="M2 12h20" stroke-dasharray="3 3" opacity="0.5"/>
         </svg>
-        <h1>LAN BeamDrop</h1>
+        <h1>LAN BeamDrop <span id="app-version" style="font-size: 0.75rem; background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 12px; vertical-align: middle; margin-left: 6px; font-weight: normal; color: rgba(255,255,255,0.9);"></span></h1>
       </div>
     </div>
     <div class="header-right">
@@ -131,10 +131,10 @@
         <!-- 网络诊断 Tab -->
         <div class="settings-tab-content" id="tab-diagnostics">
           <h3>网络诊断 (PC 端专用)</h3>
-          <p class="settings-desc">如果手机无法连接，请在此扫描局域网物理层设备，或主动 Ping 测试连通性。</p>
+          <p class="settings-desc">如果手机无法连接，请在此扫描局域网物理层设备，或主动 Ping 测试连通性。 <a href="/troubleshooting.html" target="_blank" style="color: #60a5fa; text-decoration: underline;">👉 查看图文排障指南</a></p>
           
           <div style="margin-bottom: 16px; display: flex; gap: 8px;">
-            <button id="btn-diag-arp" class="btn-primary" style="flex: 1;">🔍 扫描局域网设备 (ARP)</button>
+            <button id="btn-diag-arp" class="btn-scan-action">🔍 开始扫描局域网设备 (寻找手机)</button>
           </div>
           
           <div class="diag-table-container" style="max-height: 200px; overflow-y: auto; margin-bottom: 16px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
