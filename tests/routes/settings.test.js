@@ -23,7 +23,8 @@ app.use((req, res, next) => {
 app.use('/api/settings', settingsRouter);
 
 describe('Settings API Security & Functionality', () => {
-  const settingsPath = path.join(__dirname, '../settings.json');
+  // 必须指向根目录下的 settings_test.json，与 utils/settings.js 的测试环境隔离逻辑对齐
+  const settingsPath = path.join(__dirname, '../../settings_test.json');
   
   beforeEach(() => {
     if (fs.existsSync(settingsPath)) {

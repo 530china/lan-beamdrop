@@ -6,7 +6,9 @@ const config = require('../config');
 const isPkg = typeof process.pkg !== 'undefined';
 // 如果是打包环境，保存在可执行文件同级目录；否则保存在项目根目录
 const basePath = isPkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
-const settingsPath = path.join(basePath, 'settings.json');
+// 隔离测试环境，防止 npm test 污染用户的真实配置
+const settingsFileName = process.env.NODE_ENV === 'test' ? 'settings_test.json' : 'settings.json';
+const settingsPath = path.join(basePath, settingsFileName);
 
 /**
  * 读取本地持久化设置并合并到配置中
