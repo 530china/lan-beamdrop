@@ -11,6 +11,7 @@ getSettings();
 
 const { getPrimaryIP, getLocalIPs, isLocalHostReq } = require('./utils/network');
 const { startMdns } = require('./utils/mdns');
+const { checkUpdate } = require('./utils/update');
 const filesRouter = require('./routes/files');
 const clipboardRouter = require('./routes/clipboard');
 const settingsRouter = require('./routes/settings');
@@ -48,19 +49,19 @@ app.use((req, res, next) => {
 // ============================================
 
 // 设备信息
-app.get('/api/info', (req, res) => {
+app.get('/api/info', async (req, res) => {
   const ip = getPrimaryIP();
   const isLocalHost = isLocalHostReq(req);
 
-    const os = require('os');
-    const osPlatform = os.platform() === 'win32' ? 'windows' : (os.platform() === 'darwin' ? 'mac' : 'linux');
-    const pkg = require('./package.json');
+  const os = require('os');
+  const osPlatform = os.platform() === 'win32' ? 'windows' : (os.platform() === 'darwin' ? 'mac' : 'linux');
+  const pkg = require('./package.json');
 
-    res.json({
-      success: true,
-      deviceName: config.deviceName,
-      platform: osPlatform,
-      ip: ip,
+  res.json({
+    success: true,
+    deviceName: config.deviceName,
+    platform: osPlatform,
+    ip: ip,
     port: config.port,
     shareDir: config.shareDir,
     version: pkg.version,
@@ -68,6 +69,15 @@ app.get('/api/info', (req, res) => {
     isLocalHost: isLocalHost,
     maxFileSize: config.maxFileSize
   });
+});
+
+// 系统更新 API (分离出来，防止阻塞核心信息流)
+app.get('/api/system/update', async (req, res) => {
+  if (!isLocalHostReq(req)) {
+    return res.json({ hasUpdate: false });
+  }
+  const updateInfo = await checkUpdate();
+  res.json(updateInfo);
 });
 
 // 文件 API

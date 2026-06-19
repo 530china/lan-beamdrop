@@ -1227,3 +1227,92 @@ body {
   flex: 1;
 }
 
+/* Update Banner */
+.update-banner {
+  background: rgba(37, 99, 235, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin: 15px auto;
+  max-width: 900px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.3s ease-out;
+}
+
+.update-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.update-banner-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.update-banner-desc {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.btn-update {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-update:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.update-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-close-banner {
+  background: transparent;
+  color: #9ca3af;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-close-banner:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.update-banner {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

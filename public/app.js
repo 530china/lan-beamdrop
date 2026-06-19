@@ -101,6 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.isLocalHost) {
           btnSettings.classList.remove('hidden');
           inputShareDir.value = data.shareDir || '';
+          
+          // 如果是主机，触发后台静默检测更新
+          checkUpdateBanner(data.version);
+
           if (inputMaxFileSize && data.maxFileSize) {
             inputMaxFileSize.value = Math.round(data.maxFileSize / (1024 * 1024 * 1024));
           }
@@ -113,7 +117,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     } catch (err) {
-      console.error('Failed to fetch info', err);
+      console.error('获取设备信息失败:', err);
+    }
+  }
+
+  // --- 懒加载更新检测 ---
+  async function checkUpdateBanner(currentVersion) {
+    if (document.getElementById('update-banner-alert')) return; // 防重复
+    
+    try {
+      const res = await fetch('/api/system/update');
+      if (!res.ok) return;
+      const updateData = await res.json();
+      
+      if (updateData && updateData.hasUpdate) {
+        const dismissedVer = sessionStorage.getItem('dismissedUpdate');
+        if (dismissedVer !== updateData.latestVersion) {
+          const header = document.getElementById('app-header');
+          if (header) {
+            const banner = document.createElement('div');
+            banner.id = 'update-banner-alert';
+            banner.className = 'update-banner';
+            banner.innerHTML = `
+              <div class="update-banner-content">
+                <div class="update-banner-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  发现新版本 v${updateData.latestVersion}
+                </div>
+                <div class="update-banner-desc">
+                  当前版本 v${currentVersion}，强烈建议升级以获取最新功能与修复。
+                </div>
+              </div>
+              <div class="update-banner-actions">
+                <a href="${updateData.releaseUrl}" target="_blank" class="btn-update">立即下载</a>
+                <button class="btn-close-banner" id="btn-dismiss-update" title="忽略此版本">×</button>
+              </div>
+            `;
+            header.insertAdjacentElement('afterend', banner);
+
+            document.getElementById('btn-dismiss-update').addEventListener('click', () => {
+              sessionStorage.setItem('dismissedUpdate', updateData.latestVersion);
+              banner.style.opacity = '0';
+              banner.style.transform = 'translateY(-10px)';
+              setTimeout(() => banner.remove(), 300);
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('检测更新失败:', err);
     }
   }
 
