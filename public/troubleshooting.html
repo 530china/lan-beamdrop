@@ -146,6 +146,35 @@
           <li>点击确定保存。手机刷新网页，瞬间秒开！</li>
         </ol>
       </div>
+        </ol>
+      </div>
+    </div>
+
+    <h2 id="speed">第三步：为什么局域网测速很慢？</h2>
+    <p>如果您在主页点击 <strong>🚀 测速</strong> 后发现速度不理想，请对照以下原因排查：</p>
+    
+    <div class="alert alert-warning">
+      <div class="conclusion">嫌疑一：连接了 2.4G Wi-Fi（最常见）</div>
+      <div class="solution">
+        <strong>原理：</strong> 2.4G 频段极其拥堵且理论上限低，实际测速通常只有 <code>2MB/s ~ 8MB/s</code>。而 5G 频段干扰少，可达 <code>30MB/s ~ 100MB/s</code>。<br><br>
+        <strong>解决办法：</strong> 确保手机和电脑都连接在路由器名称带有 <code>-5G</code> 的 Wi-Fi 上。如果离路由器太远，建议直接 <strong>让手机开启个人热点，电脑连接手机热点</strong>，速度会瞬间起飞！
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <div class="conclusion">嫌疑二：Wi-Fi 半双工折损魔咒</div>
+      <div class="solution">
+        <strong>原理：</strong> Wi-Fi 就像对讲机，同一时刻只能发或收。如果您的 <strong>电脑和手机都连着同一个 Wi-Fi</strong>，一份文件要先发给路由器，路由器再发给电脑，导致带宽直接腰斩一半。<br><br>
+        <strong>解决办法：</strong> 最快、最稳的终极形态是：<strong>电脑插着网线，手机连接路由器的 5G Wi-Fi</strong>。这样两者都能跑满独立通道。
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <div class="conclusion">嫌疑三：电脑硬盘写入瓶颈（仅影响真实传大文件）</div>
+      <div class="solution">
+        <strong>原理：</strong> 本工具自带的 <strong>🚀 测速功能</strong> 是纯网卡对传，不读写硬盘。但如果您测速有 80MB/s，真实传文件却只有 20MB/s，那就是电脑存储目录所在的硬盘太慢了。<br><br>
+        <strong>解决办法：</strong> 老旧的机械硬盘（HDD）写入速度很慢，且容易卡顿。请在软件右上角的“设置”里，把 <strong>文件存储目录</strong> 更改到固态硬盘（SSD）所在的盘符。
+      </div>
     </div>
 
     <div class="shortcut">

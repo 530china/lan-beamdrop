@@ -945,3 +945,138 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   }
 });
+
+// ============================================
+// 局域网测速 (Speed Test) 逻辑
+// ============================================
+(function initSpeedTest() {
+  const btnSpeedtest = document.getElementById('btn-speedtest');
+  const speedtestModal = document.getElementById('speedtest-modal');
+  const btnCloseSpeedtest = document.getElementById('btn-close-speedtest');
+  const btnStartSpeedtest = document.getElementById('btn-start-speedtest');
+  const speedDownload = document.getElementById('speed-download');
+  const speedUpload = document.getElementById('speed-upload');
+  const speedtestConclusion = document.getElementById('speedtest-conclusion');
+
+  if (btnSpeedtest) {
+    btnSpeedtest.addEventListener('click', () => {
+      speedtestModal.classList.remove('hidden');
+    });
+  }
+
+  if (btnCloseSpeedtest) {
+    btnCloseSpeedtest.addEventListener('click', () => {
+      speedtestModal.classList.add('hidden');
+    });
+  }
+
+  async function runDownloadTest() {
+    const startTime = performance.now();
+    let bytesReceived = 0;
+    const controller = new AbortController();
+    
+    // 强制 3 秒后中断
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    try {
+      const response = await fetch('/api/speedtest/download', { signal: controller.signal });
+      const reader = response.body.getReader();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytesReceived += value.length;
+        
+        // 每 0.1 秒刷新一次 UI 以免卡死
+        const elapsedSec = (performance.now() - startTime) / 1000;
+        if (elapsedSec > 0.1) {
+          const speed = (bytesReceived / 1024 / 1024) / elapsedSec;
+          speedDownload.textContent = speed.toFixed(1);
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Download test error:', err);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    
+    const finalElapsed = (performance.now() - startTime) / 1000;
+    return (bytesReceived / 1024 / 1024) / finalElapsed;
+  }
+
+  async function runUploadTest() {
+    const startTime = performance.now();
+    let bytesSent = 0;
+    const testDuration = 3000; // 3 秒
+    
+    // 生成 2MB 的垃圾内存数据
+    const payload = new Uint8Array(2 * 1024 * 1024);
+    
+    while (performance.now() - startTime < testDuration) {
+      try {
+        await fetch('/api/speedtest/upload', {
+          method: 'POST',
+          body: payload,
+          headers: { 'Content-Type': 'application/octet-stream' }
+        });
+        bytesSent += payload.length;
+        
+        const elapsedSec = (performance.now() - startTime) / 1000;
+        const speed = (bytesSent / 1024 / 1024) / elapsedSec;
+        speedUpload.textContent = speed.toFixed(1);
+      } catch (err) {
+        console.error('Upload test error:', err);
+        break;
+      }
+    }
+    
+    const finalElapsed = (performance.now() - startTime) / 1000;
+    return (bytesSent / 1024 / 1024) / finalElapsed;
+  }
+
+  if (btnStartSpeedtest) {
+    btnStartSpeedtest.addEventListener('click', async () => {
+      btnStartSpeedtest.disabled = true;
+      btnStartSpeedtest.textContent = '测试下行中...';
+      btnStartSpeedtest.style.opacity = '0.7';
+      speedDownload.textContent = '0.0';
+      speedUpload.textContent = '0.0';
+      speedtestConclusion.classList.add('hidden');
+
+      // 跑下载
+      const dlSpeed = await runDownloadTest();
+      speedDownload.textContent = dlSpeed.toFixed(1);
+
+      // 跑上传
+      btnStartSpeedtest.textContent = '测试上行中...';
+      const ulSpeed = await runUploadTest();
+      speedUpload.textContent = ulSpeed.toFixed(1);
+
+      // 恢复 UI
+      btnStartSpeedtest.textContent = '重新测速';
+      btnStartSpeedtest.disabled = false;
+      btnStartSpeedtest.style.opacity = '1';
+
+      // 智能诊断结论
+      speedtestConclusion.classList.remove('hidden');
+      const minSpeed = Math.min(dlSpeed, ulSpeed);
+      const helpLink = '<br><br><a href="/troubleshooting.html#speed" target="_blank" style="color: #93c5fd; text-decoration: underline;">👉 为什么速度跑不满？点击查看提速指南</a>';
+      
+      if (minSpeed < 10) {
+        speedtestConclusion.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+        speedtestConclusion.style.borderLeft = '4px solid #ef4444';
+        speedtestConclusion.innerHTML = '<strong style="color: #fca5a5;">🔴 警告：局域网极慢</strong><br>您的速度极低，可能是连接了 2.4G Wi-Fi 或信号极差。建议切换到 5G，或直接用手机开热点给电脑连！' + helpLink;
+      } else if (minSpeed < 30) {
+        speedtestConclusion.style.backgroundColor = 'rgba(245, 158, 11, 0.2)';
+        speedtestConclusion.style.borderLeft = '4px solid #f59e0b';
+        speedtestConclusion.innerHTML = '<strong style="color: #fcd34d;">🟡 提示：速度一般</strong><br>带宽满足日常传图和轻量级文件，但传输超大文件（如电影）可能会较耗时。' + helpLink;
+      } else {
+        speedtestConclusion.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+        speedtestConclusion.style.borderLeft = '4px solid #10b981';
+        speedtestConclusion.innerHTML = '<strong style="color: #6ee7b7;">🟢 畅通无阻</strong><br>网络环境极佳！您处于局域网高速通道，可尽情跑满带宽传输超大文件！' + helpLink;
+      }
+    });
+  }
+})();
