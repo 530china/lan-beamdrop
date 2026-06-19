@@ -857,7 +857,54 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Utils ---
+  // --- Drag and Drop File Upload ---
+  const dragOverlay = document.getElementById('drag-overlay');
+  let dragCounter = 0;
+
+  document.addEventListener('dragenter', (e) => {
+    // 仅在拖拽的是“文件”时触发遮罩，忽略文本或 HTML 的拖拽
+    if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      dragCounter++;
+      if (dragCounter === 1) {
+        dragOverlay.classList.remove('hidden');
+      }
+    }
+  });
+
+  document.addEventListener('dragleave', (e) => {
+    if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter === 0) {
+        dragOverlay.classList.add('hidden');
+      }
+    }
+  });
+
+  document.addEventListener('dragover', (e) => {
+    // 必须阻止默认行为，否则 drop 事件不会触发
+    if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy'; // 显示拷贝图标
+    }
+  });
+
+  document.addEventListener('drop', (e) => {
+    // 防止 Safari 等浏览器默认打开文件导致跳出当前页面
+    e.preventDefault();
+    dragCounter = 0;
+    dragOverlay.classList.add('hidden');
+
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach(file => {
+        uploadFileAsMessage(file);
+      });
+    }
+  });
+
+  // --- Utility ---
   function getFileIcon(filename) {
     const ext = filename.split('.').pop().toLowerCase();
     const icons = {

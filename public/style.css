@@ -620,6 +620,60 @@ body {
   to { opacity: 0; transform: translateY(-10px); }
 }
 
+/* 拖拽上传全局悬浮层 */
+.drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(10, 10, 15, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.drag-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.drag-overlay-content {
+  border: 2px dashed rgba(139, 92, 246, 0.6);
+  border-radius: 20px;
+  padding: 40px 80px;
+  text-align: center;
+  color: var(--text-main);
+  background: rgba(139, 92, 246, 0.05);
+  box-shadow: 0 0 40px rgba(139, 92, 246, 0.1);
+  transform: scale(1);
+  transition: transform 0.2s ease;
+  pointer-events: none; /* 防止拖拽穿过文字时触发事件 */
+}
+
+.drag-overlay:not(.hidden) .drag-overlay-content {
+  animation: pulse-border 2s infinite;
+}
+
+.drag-overlay-content svg {
+  margin-bottom: 16px;
+  color: var(--accent-1);
+}
+
+.drag-overlay-content h2 {
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+}
+
+@keyframes pulse-border {
+  0% { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 20px rgba(139, 92, 246, 0.1); }
+  50% { border-color: rgba(139, 92, 246, 0.8); box-shadow: 0 0 40px rgba(139, 92, 246, 0.3); }
+  100% { border-color: rgba(139, 92, 246, 0.4); box-shadow: 0 0 20px rgba(139, 92, 246, 0.1); }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
