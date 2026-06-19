@@ -447,10 +447,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeXhrs = new Map(); // uploadId -> XMLHttpRequest();
   let lastMessagesKey = '';
   
-  function scrollToBottom() {
-    if(chatMessages) {
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+  function scrollToBottom(smooth = false) {
+    if (!chatMessages) return;
+    
+    const executeScroll = () => {
+      chatMessages.scrollTo({
+        top: chatMessages.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    };
+
+    // 确保 DOM 已完整绘制
+    requestAnimationFrame(() => {
+      executeScroll();
+      
+      // 监听未加载完成的图片，加载完毕后再次滚动，防止图片撑开容器导致无法沉底
+      const images = chatMessages.querySelectorAll('img');
+      images.forEach(img => {
+        if (!img.complete) {
+          img.addEventListener('load', executeScroll, { once: true });
+        }
+      });
+    });
   }
 
   setInterval(fetchUnifiedMessages, 2000);
@@ -526,8 +544,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderChatHistory(history) {
     if (!history || history.length === 0) return;
     
-    let isAtBottom = chatMessages.scrollHeight - chatMessages.clientHeight <= chatMessages.scrollTop + 10;
+    const oldScrollTop = chatMessages.scrollTop;
+    const oldScrollHeight = chatMessages.scrollHeight;
+    let isAtBottom = oldScrollHeight - chatMessages.clientHeight <= oldScrollTop + 10;
     let newMessages = false;
+    const isInitialLoad = renderedMessageIds.size === 0;
 
     // remove empty state if exists
     const empty = chatMessages.querySelector('.empty-state');
@@ -678,8 +699,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
       
-      if (isAtBottom || renderedMessageIds.size <= history.length) {
-        scrollToBottom();
+      // 同步还原清空 DOM 前的滚动位置，防止浏览器默认重置为 0
+      if (!isInitialLoad) {
+        chatMessages.scrollTop = oldScrollTop;
+      }
+      
+      if (isInitialLoad) {
+        // 首次加载瞬间沉底
+        scrollToBottom(false);
+      } else if (isAtBottom) {
+        // 如果原本就在底部，有新消息时平滑滚动一小段距离
+        scrollToBottom(true);
+      } else {
+        // 用户在翻看历史消息，维持当前阅读位置不变
+        chatMessages.scrollTop = oldScrollTop;
       }
     }
   }
@@ -710,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadId = 'upload_' + Date.now() + '_' + safeName;
     const upObj = { id: uploadId, name: file.name, progress: 0, speed: '\u8ba1\u7b97\u4e2d...', timestamp: new Date().toISOString() };
     uploadingFiles.set(uploadId, upObj);
-    fetchUnifiedMessages().then(() => scrollToBottom());
+    fetchUnifiedMessages().then(() => scrollToBottom(true));
     
     const formData = new FormData();
     formData.append('files', file);
@@ -811,7 +844,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (res.ok) {
         clipboardInput.value = '';
-        fetchUnifiedMessages().then(() => scrollToBottom());
+        fetchUnifiedMessages().then(() => scrollToBottom(true));
         addLog('发送文本');
       } else {
         showToast('发送失败', 'error');
