@@ -30,6 +30,7 @@
       </div>
     </div>
     <div class="header-right">
+      <button id="btn-speedtest" class="btn-icon" title="网络测速" style="font-size: 1.2rem;">🚀</button>
       <button id="btn-settings" class="btn-icon hidden" title="主机设置">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
@@ -201,6 +202,34 @@
         <div style="display: flex; gap: 12px;">
           <button id="explorer-btn-select" class="btn-primary">确认选择</button>
           <button id="explorer-btn-cancel" class="btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 局域网测速 Modal -->
+  <div id="speedtest-modal" class="lightbox hidden" style="z-index: 4000;">
+    <div class="lightbox-backdrop" id="speedtest-backdrop"></div>
+    <div class="lightbox-content speedtest-content" style="max-width: 450px; width: 90%; background: rgba(25, 25, 35, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <h2 style="margin: 0; font-size: 1.25rem; color: #fff;">🚀 局域网测速</h2>
+        <button id="btn-close-speedtest" class="btn-icon" style="opacity: 0.7;">✖</button>
+      </div>
+      <div class="speedtest-body" style="text-align: center; padding: 20px;">
+        <div class="speedtest-gauges" style="display: flex; justify-content: space-around; margin-bottom: 30px;">
+          <div class="gauge" style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; width: 45%; border: 1px solid rgba(59, 130, 246, 0.3); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+            <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 8px;">下行 (Download)</div>
+            <div id="speed-download" style="font-size: 2.2rem; font-weight: bold; color: #60a5fa; font-family: monospace;">0.0</div>
+            <div style="font-size: 0.8rem; color: #6b7280;">MB/s</div>
+          </div>
+          <div class="gauge" style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; width: 45%; border: 1px solid rgba(139, 92, 246, 0.3); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+            <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 8px;">上行 (Upload)</div>
+            <div id="speed-upload" style="font-size: 2.2rem; font-weight: bold; color: #a78bfa; font-family: monospace;">0.0</div>
+            <div style="font-size: 0.8rem; color: #6b7280;">MB/s</div>
+          </div>
+        </div>
+        <button id="btn-start-speedtest" class="btn-scan-action" style="margin-bottom: 20px;">开始测速</button>
+        <div id="speedtest-conclusion" class="hidden" style="padding: 12px; border-radius: 8px; font-size: 0.9rem; text-align: left; line-height: 1.5; color: #fff;">
         </div>
       </div>
     </div>

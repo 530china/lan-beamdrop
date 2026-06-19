@@ -16,6 +16,7 @@ const clipboardRouter = require('./routes/clipboard');
 const settingsRouter = require('./routes/settings');
 const explorerRouter = require('./routes/explorer');
 const diagnosticsRouter = require('./routes/diagnostics');
+const speedtestRouter = require('./routes/speedtest');
 
 const app = express();
 
@@ -80,6 +81,9 @@ app.use('/api/settings', settingsRouter);
 
 // 文件浏览器 API
 app.use('/api/explorer', explorerRouter);
+
+// 局域网测速 API (全局允许，供手机端调用)
+app.use('/api/speedtest', speedtestRouter);
 
 // 网络诊断 API (仅限本机)
 app.use('/api/diagnostics', (req, res, next) => {
