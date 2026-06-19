@@ -800,7 +800,13 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollToBottom(false);
       } else if (isAtBottom) {
         // 如果原本就在底部，有新消息时平滑滚动一小段距离
-        scrollToBottom(true);
+        // 增加突变保护：如果清空搜索导致高度暴增，瞬间跳跃，防止眩晕
+        const newScrollHeight = chatMessages.scrollHeight;
+        if (Math.abs(newScrollHeight - oldScrollHeight) > chatMessages.clientHeight * 2) {
+          scrollToBottom(false);
+        } else {
+          scrollToBottom(true);
+        }
       } else {
         // 用户在翻看历史消息，维持当前阅读位置不变
         chatMessages.scrollTop = oldScrollTop;
