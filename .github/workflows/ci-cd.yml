@@ -84,6 +84,5 @@ jobs:
           name: Release v${{ env.TARGET_VERSION }}
           # 将 dist 目录下生成的所有二进制文件作为附件上传
           files: dist/*
-          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
