@@ -6,12 +6,55 @@
 const { getPrimaryIP } = require('./network');
 const { execSync } = require('child_process');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
+const config = require('../config');
+
+// 判断是否处于 pkg 打包环境
+const isPkg = typeof process.pkg !== 'undefined';
+const basePath = isPkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
 
 // store history
-const MAX_HISTORY = 50;
+const historyFile = process.env.NODE_ENV === 'test' ? 'clipboard_history_test.json' : 'clipboard_history.json';
+const HISTORY_PATH = path.join(basePath, historyFile);
+
 let clipboardHistory = [];
+
+try {
+  if (fs.existsSync(HISTORY_PATH)) {
+    clipboardHistory = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
+  }
+} catch (err) {
+  console.error('[剪切板] 读取历史记录失败:', err.message);
+}
+
 let lastPCClipboard = '';
 let isWritingToPC = false;
+
+function saveHistory() {
+  if (config.maxClipboardHistory <= 0) {
+    clipboardHistory = [];
+    if (fs.existsSync(HISTORY_PATH)) {
+      try { fs.unlinkSync(HISTORY_PATH); } catch(e){}
+    }
+    return;
+  }
+  if (clipboardHistory.length > config.maxClipboardHistory) {
+    clipboardHistory = clipboardHistory.slice(-config.maxClipboardHistory);
+  }
+  try {
+    fs.writeFileSync(HISTORY_PATH, JSON.stringify(clipboardHistory, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[剪切板] 写入历史记录失败:', err.message);
+  }
+}
+
+function clearHistory() {
+  clipboardHistory = [];
+  if (fs.existsSync(HISTORY_PATH)) {
+    try { fs.unlinkSync(HISTORY_PATH); } catch(err) {}
+  }
+}
 
 /**
  * 原生读取剪切板 (兼容 Windows, Mac, Linux)
@@ -74,7 +117,7 @@ function setSharedClipboard(data) {
     timestamp: new Date().toISOString()
   };
   clipboardHistory.push(msg);
-  if (clipboardHistory.length > MAX_HISTORY) clipboardHistory.shift();
+  saveHistory();
   return msg;
 }
 
@@ -95,7 +138,7 @@ async function syncFromPC() {
         timestamp: new Date().toISOString()
       };
       clipboardHistory.push(msg);
-      if (clipboardHistory.length > MAX_HISTORY) clipboardHistory.shift();
+      saveHistory();
     }
     return clipboardHistory;
   } catch (err) {
@@ -126,4 +169,5 @@ module.exports = {
   setSharedClipboard,
   syncFromPC,
   writeToPC,
+  clearHistory,
 };

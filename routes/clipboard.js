@@ -64,6 +64,17 @@ router.post('/', async (req, res) => {
   }
 });
 
-
+/**
+ * DELETE /api/clipboard
+ * 清空共享剪切板历史记录
+ */
+router.delete('/', (req, res) => {
+  try {
+    clipboard.clearHistory();
+    res.json({ success: true, message: '历史记录已清空' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: '清空历史记录失败' });
+  }
+});
 
 module.exports = router;
