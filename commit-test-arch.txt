@@ -1,0 +1,16 @@
+ENH: 重构文件系统测试架构，实现全内存跨平台环境 Mock 与边缘测试
+
+WHY:
+原有的 `files.test.js` 依赖真实的物理磁盘操作生成 `test_files_dir`，导致在 Windows 下经常出现文件句柄锁定（EBUSY）导致的随机测试失败。同时这种模式存在产生垃圾文件且难以模拟恶意路径（如跨系统特殊字符）的安全隐患。这不符合本工具无环境依赖、跨平台的设计初衷。
+
+WHAT:
+1. 移除物理 `TEST_DIR` 的真实 IO 操作。
+2. 引入 `jest.mock('fs')` 与 `mockMemoryFs`，在内存中完全模拟出 Express/Multer 所需要的虚拟文件系统环境（包括 `createWriteStream` 和 `renameSync` 等方法）。
+3. 补充了对 `fs.unlinkSync` 触发 `EACCES` 无权限的边缘测试，保证 Node 进程不崩溃。
+4. 补充了目录穿越与非法跨平台字符 (`< > : " / \ | ? *`) 解析的测试覆盖率。
+5. 在 `.gitignore` 中追加 `coverage/` 防止测试报告污染代码库。
+
+TEST:
+1. 移除了真实物理创建目录后，运行 `npx jest tests/routes/files.test.js`，所有 11 个测试闪电通过。
+2. 执行 `npx jest --coverage` 确认 `routes/files.js` 的覆盖率从 67% 提升至 76.1%。
+3. 检查开发机本地未再产生 `.uploading` 等任何测试残留文件。
