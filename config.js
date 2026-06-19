@@ -19,4 +19,7 @@ module.exports = {
 
   // 剪切板轮询间隔（毫秒）
   clipboardPollInterval: 2000,
+
+  // 最大文本记录存储数（0为不保留）
+  maxClipboardHistory: 50,
 };

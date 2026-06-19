@@ -27,7 +27,34 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseSettings = document.getElementById('btn-close-settings');
   const inputShareDir = document.getElementById('setting-share-dir');
   const inputMaxFileSize = document.getElementById('setting-max-file-size');
+  const inputMaxClipboardHistory = document.getElementById('setting-max-clipboard-history');
   const inputPort = document.getElementById('setting-port');
+  const btnClearHistory = document.getElementById('btn-clear-history');
+
+  // Search State
+  let fullUnifiedHistory = [];
+  let searchKeyword = '';
+  let searchType = 'all';
+  const inputSearchKeyword = document.getElementById('search-keyword');
+  const searchFilters = document.getElementById('search-filters');
+
+  if (inputSearchKeyword) {
+    inputSearchKeyword.addEventListener('input', (e) => {
+      searchKeyword = e.target.value.trim().toLowerCase();
+      applySearchAndRender();
+    });
+  }
+
+  if (searchFilters) {
+    searchFilters.addEventListener('click', (e) => {
+      if (e.target.classList.contains('filter-pill')) {
+        searchFilters.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+        e.target.classList.add('active');
+        searchType = e.target.dataset.type;
+        applySearchAndRender();
+      }
+    });
+  }
 
   // --- Init ---
   fetchDeviceInfo();
@@ -77,6 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
           if (inputMaxFileSize && data.maxFileSize) {
             inputMaxFileSize.value = Math.round(data.maxFileSize / (1024 * 1024 * 1024));
           }
+          if (inputMaxClipboardHistory && data.maxClipboardHistory !== undefined) {
+            inputMaxClipboardHistory.value = data.maxClipboardHistory;
+          }
           if (inputPort && data.port) {
             inputPort.value = data.port;
           }
@@ -114,6 +144,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (inputMaxFileSize && inputMaxFileSize.value) {
       payload.maxFileSize = parseInt(inputMaxFileSize.value, 10) * 1024 * 1024 * 1024;
     }
+    if (inputMaxClipboardHistory && inputMaxClipboardHistory.value) {
+      payload.maxClipboardHistory = parseInt(inputMaxClipboardHistory.value, 10);
+    }
     if (inputPort && inputPort.value) {
       payload.port = parseInt(inputPort.value, 10);
     }
@@ -142,6 +175,26 @@ document.addEventListener('DOMContentLoaded', () => {
       btnSaveSettings.disabled = false;
     }
   });
+
+  if (btnClearHistory) {
+    btnClearHistory.addEventListener('click', async () => {
+      if (!confirm('确定要彻底清空所有纯文本历史记录吗？\n（物理文件不受影响）')) return;
+      
+      try {
+        const res = await fetch('/api/clipboard', { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('历史记录已清空', 'success');
+          fetchUnifiedMessages();
+          closeSettings();
+        } else {
+          showToast('清空失败', 'error');
+        }
+      } catch (err) {
+        showToast('网络错误', 'error');
+      }
+    });
+  }
 
   // --- Settings UI: Tabs & Browse Folder ---
   const settingsMenu = document.getElementById('settings-menu');
@@ -524,20 +577,58 @@ document.addEventListener('DOMContentLoaded', () => {
          });
       });
       
-      history.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Limit to last 100 items for performance
-      history = history.slice(-100);
-      
-      // Check if anything changed
-      const currentKey = history.map(h => h.id + '_' + (h.progress || 0) + '_' + (h.speed || '')).join(',');
-      if (currentKey !== lastMessagesKey) {
-        lastMessagesKey = currentKey;
-        renderChatHistory(history);
-      }
+      fullUnifiedHistory = history;
+      applySearchAndRender();
       
     } catch (err) {
       console.error('Failed to fetch messages', err);
+    }
+  }
+
+  function applySearchAndRender() {
+    let history = [...fullUnifiedHistory];
+    
+    // 1. Filter by Search Keyword (applies to content or filename)
+    if (searchKeyword) {
+      history = history.filter(item => {
+        const text = (item.content || '').toLowerCase();
+        return text.includes(searchKeyword);
+      });
+    }
+    
+    // 2. Filter by Category Type
+    if (searchType !== 'all') {
+      history = history.filter(item => {
+        const text = (item.content || '').toLowerCase();
+        
+        if (searchType === 'link') {
+          return item.type === 'text' && (text.includes('http://') || text.includes('https://'));
+        }
+        
+        // For media/docs, we generally expect files, or texts that end with extensions
+        const isImageVideo = /\.(jpg|jpeg|png|gif|webp|mp4|mov|avi|mkv|webm)$/i.test(text);
+        const isAudio = /\.(mp3|wav|aac|m4a|flac|ogg)$/i.test(text);
+        const isDoc = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|md|csv)$/i.test(text);
+        
+        if (searchType === 'image_video') return isImageVideo;
+        if (searchType === 'audio') return isAudio;
+        if (searchType === 'doc') return isDoc;
+        
+        return true;
+      });
+    }
+
+    // 3. Sort by timestamp ascending
+    history.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // 4. Limit to last 100 items for DOM performance
+    history = history.slice(-100);
+    
+    // Check if anything changed
+    const currentKey = history.map(h => h.id + '_' + (h.progress || 0) + '_' + (h.speed || '')).join(',');
+    if (currentKey !== lastMessagesKey) {
+      lastMessagesKey = currentKey;
+      renderChatHistory(history);
     }
   }
 

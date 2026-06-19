@@ -25,7 +25,8 @@ router.get('/', (req, res) => {
       data: {
         shareDir: config.shareDir,
         port: config.port,
-        maxFileSize: config.maxFileSize
+        maxFileSize: config.maxFileSize,
+        maxClipboardHistory: config.maxClipboardHistory
       }
     });
   } catch (err) {
@@ -35,8 +36,8 @@ router.get('/', (req, res) => {
 
 // POST /api/settings - 修改设置
 router.post('/', (req, res) => {
-  const { shareDir, port, maxFileSize } = req.body;
-  if (!shareDir && !port && !maxFileSize) {
+  const { shareDir, port, maxFileSize, maxClipboardHistory } = req.body;
+  if (!shareDir && !port && !maxFileSize && maxClipboardHistory === undefined) {
     return res.status(400).json({ success: false, error: '缺少配置参数' });
   }
 
@@ -45,6 +46,7 @@ router.post('/', (req, res) => {
     if (shareDir) newSettings.shareDir = shareDir;
     if (port) newSettings.port = port;
     if (maxFileSize) newSettings.maxFileSize = maxFileSize;
+    if (maxClipboardHistory !== undefined) newSettings.maxClipboardHistory = maxClipboardHistory;
     
     updateSettings(newSettings);
     res.json({ success: true, message: '设置已保存' });

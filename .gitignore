@@ -7,3 +7,5 @@ yarn-error.log*
 .env
 dist/
 coverage/
+
+clipboard_history.json
