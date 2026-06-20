@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LAN BeamDrop - 安全验证</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --primary: #4e8cff;
+      --text: #e0e0e0;
+      --text-dim: #9e9e9e;
+      --border: #333;
+      --error: #ff5252;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+    .lock-container {
+      background: var(--surface);
+      padding: 30px 20px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      text-align: center;
+      width: 85%;
+      max-width: 320px;
+      border: 1px solid var(--border);
+      margin: 20px 0;
+    }
+    .icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    h2 {
+      margin: 0 0 10px 0;
+      font-weight: 500;
+      font-size: 22px;
+    }
+    p {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+    .pin-display {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .pin-dot {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: all 0.2s ease;
+    }
+    .pin-dot.filled {
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+    }
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    .key {
+      background: rgba(255,255,255,0.05);
+      border: none;
+      color: var(--text);
+      font-size: 24px;
+      height: 60px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s;
+    }
+    .key:active {
+      background: rgba(255,255,255,0.2);
+    }
+    .key.action {
+      font-size: 18px;
+      background: transparent;
+      color: var(--text-dim);
+    }
+    
+    .shake {
+      animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-2px, 0, 0); }
+      20%, 80% { transform: translate3d(4px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+      40%, 60% { transform: translate3d(6px, 0, 0); }
+    }
+    
+    .error-msg {
+      color: var(--error);
+      font-size: 13px;
+      height: 15px;
+      margin-bottom: 10px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="lock-container" id="lockContainer">
+    <div class="icon">🔒</div>
+    <h2>安全验证</h2>
+    <p>请在终端查看 4 位数配对码</p>
+    
+    <div class="error-msg" id="errorMsg">配对码错误</div>
+
+    <div class="pin-display" id="pinDisplay">
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+    </div>
+
+    <div class="keypad">
+      <button class="key" onclick="press('1')">1</button>
+      <button class="key" onclick="press('2')">2</button>
+      <button class="key" onclick="press('3')">3</button>
+      <button class="key" onclick="press('4')">4</button>
+      <button class="key" onclick="press('5')">5</button>
+      <button class="key" onclick="press('6')">6</button>
+      <button class="key" onclick="press('7')">7</button>
+      <button class="key" onclick="press('8')">8</button>
+      <button class="key" onclick="press('9')">9</button>
+      <button class="key action" onclick="clearAll()">C</button>
+      <button class="key" onclick="press('0')">0</button>
+      <button class="key action" onclick="backspace()">⌫</button>
+    </div>
+  </div>
+
+  <script>
+    let currentPin = '';
+    const dots = document.querySelectorAll('.pin-dot');
+    const lockContainer = document.getElementById('lockContainer');
+    const errorMsg = document.getElementById('errorMsg');
+    let isSubmitting = false;
+
+    function updateDisplay() {
+      dots.forEach((dot, index) => {
+        if (index < currentPin.length) {
+          dot.classList.add('filled');
+        } else {
+          dot.classList.remove('filled');
+        }
+      });
+    }
+
+    function press(num) {
+      if (isSubmitting || currentPin.length >= 4) return;
+      currentPin += num;
+      updateDisplay();
+      errorMsg.style.opacity = '0';
+      
+      if (currentPin.length === 4) {
+        submitPin();
+      }
+    }
+
+    function backspace() {
+      if (isSubmitting || currentPin.length === 0) return;
+      currentPin = currentPin.slice(0, -1);
+      updateDisplay();
+    }
+
+    function clearAll() {
+      if (isSubmitting) return;
+      currentPin = '';
+      updateDisplay();
+    }
+
+    async function submitPin() {
+      isSubmitting = true;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: currentPin })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          // 登录成功，跳转首页
+          window.location.href = '/';
+        } else {
+          // 验证失败
+          currentPin = '';
+          updateDisplay();
+          errorMsg.style.opacity = '1';
+          lockContainer.classList.remove('shake');
+          void lockContainer.offsetWidth; // trigger reflow
+          lockContainer.classList.add('shake');
+          isSubmitting = false;
+        }
+      } catch (err) {
+        console.error(err);
+        currentPin = '';
+        updateDisplay();
+        isSubmitting = false;
+      }
+    }
+
+    // 支持键盘输入
+    document.addEventListener('keydown', (e) => {
+      if (e.key >= '0' && e.key <= '9') {
+        press(e.key);
+      } else if (e.key === 'Backspace') {
+        backspace();
+      } else if (e.key === 'Escape' || e.key === 'Clear') {
+        clearAll();
+      }
+    });
+  </script>
+</body>
+</html>

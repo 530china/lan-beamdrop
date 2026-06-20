@@ -22,4 +22,7 @@ module.exports = {
 
   // 最大文本记录存储数（0为不保留）
   maxClipboardHistory: 50,
+
+  // 访问密码。''=关闭, 'random'=随机, 其他字符串=固定密码
+  accessPassword: '',
 };

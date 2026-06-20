@@ -28,6 +28,7 @@ function getSettings() {
   if (settings.port) config.port = parseInt(settings.port, 10);
   if (settings.maxFileSize) config.maxFileSize = parseInt(settings.maxFileSize, 10);
   if (settings.maxClipboardHistory !== undefined) config.maxClipboardHistory = parseInt(settings.maxClipboardHistory, 10);
+  if (settings.accessPassword !== undefined) config.accessPassword = settings.accessPassword;
 
   return config;
 }
@@ -67,6 +68,7 @@ function updateSettings(newSettings) {
   if (settings.port) config.port = parseInt(settings.port, 10);
   if (settings.maxFileSize) config.maxFileSize = parseInt(settings.maxFileSize, 10);
   if (settings.maxClipboardHistory !== undefined) config.maxClipboardHistory = parseInt(settings.maxClipboardHistory, 10);
+  if (settings.accessPassword !== undefined) config.accessPassword = settings.accessPassword;
 
   // 写入文件
   try {

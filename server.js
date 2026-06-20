@@ -2,6 +2,8 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 
 const config = require('./config');
 const { getSettings } = require('./utils/settings');
@@ -32,6 +34,24 @@ app.use(cors());
 // JSON 解析
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// 初始化访问凭证
+if (config.accessPassword) {
+  global.ACCESS_TOKEN = crypto.randomBytes(32).toString('hex');
+  if (config.accessPassword === 'random') {
+    global.CURRENT_PIN = Math.floor(1000 + Math.random() * 9000).toString();
+  } else {
+    global.CURRENT_PIN = config.accessPassword;
+  }
+} else {
+  global.ACCESS_TOKEN = null;
+  global.CURRENT_PIN = null;
+}
+
+// 鉴权拦截器（放在静态文件前）
+const authMiddleware = require('./middleware/auth');
+app.use(authMiddleware);
 
 // 静态文件（Web UI）
 app.use(express.static(path.join(__dirname, 'public')));
@@ -68,7 +88,8 @@ app.get('/api/info', async (req, res) => {
     version: pkg.version,
     url: `http://${ip}:${config.port}`,
     isLocalHost: isLocalHost,
-    maxFileSize: config.maxFileSize
+    maxFileSize: config.maxFileSize,
+    accessPassword: isLocalHost ? (config.accessPassword || '') : ''
   });
 });
 
@@ -80,6 +101,10 @@ app.get('/api/system/update', async (req, res) => {
   const updateInfo = await checkUpdate();
   res.json(updateInfo);
 });
+
+// 鉴权 API
+const authRouter = require('./routes/auth');
+app.use('/api/auth', authRouter);
 
 // 文件 API
 app.use('/api/files', filesRouter);
@@ -138,28 +163,36 @@ if (!fs.existsSync(config.shareDir)) {
 
 const server = app.listen(config.port, '0.0.0.0', () => {
   const ip = getPrimaryIP();
-  const url = `http://${ip}:${config.port}`;
+  let url = `http://${ip}:${config.port}`;
+  const displayUrl = url; // 终端显示的干净地址
+
+  if (config.accessPassword && global.ACCESS_TOKEN) {
+    url += `?token=${global.ACCESS_TOKEN}`;
+  }
 
   console.log('');
   console.log('╭──────────────────────────────────────────╮');
   console.log('│          🚀 LAN BeamDrop 启动成功        │');
   console.log('├──────────────────────────────────────────┤');
-  console.log(`║  地址: ${url.padEnd(33)}║`);
+  console.log(`║  地址: ${displayUrl.padEnd(33)}║`);
   console.log(`║  设备: ${config.deviceName.padEnd(33)}║`);
   console.log(`║  目录: ${config.shareDir.padEnd(33)}║`);
+  if (config.accessPassword) {
+    console.log(`║  🔒 配对码: ${String(global.CURRENT_PIN).padEnd(28)}║`);
+  }
   console.log('╠══════════════════════════════════════════╣');
   console.log('║  📱 手机扫描下方二维码连接               ║');
   console.log('╚══════════════════════════════════════════╝');
   console.log('');
 
-  // 显示二维码
+  // 显示二维码 (包含 Token)
   try {
     const qrcode = require('qrcode-terminal');
     qrcode.generate(url, { small: true }, (qr) => {
       console.log(qr);
     });
   } catch (err) {
-    console.log(`📱 请用手机浏览器打开: ${url}`);
+    console.log(`📱 请用手机浏览器打开: ${displayUrl}`);
   }
 
   console.log('');

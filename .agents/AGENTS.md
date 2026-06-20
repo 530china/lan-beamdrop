@@ -35,3 +35,4 @@ Before you complete a task or tell the user "I am done", you MUST execute the fo
 2. **Knowledge Base Synchronization**: Ask yourself: *"Did my code changes alter the project's logic, architecture, configuration defaults, or API endpoints?"*
    - If **YES**, you MUST proactively open and modify `docs/ARCHITECTURE.md` to reflect the new reality. 
    - **Never leave the documentation out of sync with the codebase.**
+3. **Frontend Visual QA (Visual Stacking & Modals)**: If you made changes to frontend UI elements (especially `z-index`, modals, or error toasts), you **MUST** verify the visual stacking context. Do not assume `showToast` or an HTML overlay works without visual verification. Use the Chrome DevTools MCP or instruct the user to verify overlapping UI elements (Happy Path & Error Path) on both desktop and mobile views before marking UI tasks as done.

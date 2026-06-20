@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveSettings = document.getElementById('btn-save-settings');
   const btnCloseSettings = document.getElementById('btn-close-settings');
   const inputShareDir = document.getElementById('setting-share-dir');
+  const inputAccessPassword = document.getElementById('setting-access-password');
   const inputMaxFileSize = document.getElementById('setting-max-file-size');
   const inputMaxClipboardHistory = document.getElementById('setting-max-clipboard-history');
   const inputPort = document.getElementById('setting-port');
@@ -38,9 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputSearchKeyword = document.getElementById('search-keyword');
   const searchFilters = document.getElementById('search-filters');
 
+  let forceNextScrollBottom = false;
+
   if (inputSearchKeyword) {
     inputSearchKeyword.addEventListener('input', (e) => {
+      const prevKeyword = searchKeyword;
       searchKeyword = e.target.value.trim().toLowerCase();
+      
+      // 如果删除了搜索关键字（清空），则强制下一次渲染滚到底部
+      if (prevKeyword && !searchKeyword) {
+        forceNextScrollBottom = true;
+      }
       applySearchAndRender();
     });
   }
@@ -100,7 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Settings Visibility
         if (data.isLocalHost) {
           btnSettings.classList.remove('hidden');
-          inputShareDir.value = data.shareDir || '';
+          if (inputShareDir) inputShareDir.value = data.shareDir || '';
+          if (inputAccessPassword) inputAccessPassword.value = data.accessPassword || '';
           
           // 如果是主机，触发后台静默检测更新
           checkUpdateBanner(data.version);
@@ -198,6 +208,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (inputMaxClipboardHistory && inputMaxClipboardHistory.value) {
       payload.maxClipboardHistory = parseInt(inputMaxClipboardHistory.value, 10);
+    }
+    if (inputAccessPassword && inputAccessPassword.value !== undefined) {
+      const pwd = inputAccessPassword.value.trim();
+      if (pwd !== '' && pwd !== 'random' && !/^\d{4}$/.test(pwd)) {
+        showToast('访问密码必须是 4 位纯数字，或者是 random', 'error');
+        btnSaveSettings.textContent = '保存设置';
+        btnSaveSettings.disabled = false;
+        return;
+      }
+      payload.accessPassword = pwd;
     }
     if (inputPort && inputPort.value) {
       payload.port = parseInt(inputPort.value, 10);
@@ -735,6 +755,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const oldScrollTop = chatMessages.scrollTop;
     const oldScrollHeight = chatMessages.scrollHeight;
     let isAtBottom = oldScrollHeight - chatMessages.clientHeight <= oldScrollTop + 10;
+    
+    if (forceNextScrollBottom) {
+      isAtBottom = true;
+      forceNextScrollBottom = false;
+    }
+
     let newMessages = false;
     const isInitialLoad = renderedMessageIds.size === 0;
 
