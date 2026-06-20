@@ -1,6 +1,7 @@
 const express = require('express');
 const clipboard = require('../utils/clipboard');
 const { getLocalIPs } = require('../utils/network');
+const { broadcastUpdate } = require('../utils/websocket');
 
 const router = express.Router();
 
@@ -57,6 +58,8 @@ router.post('/', async (req, res) => {
       console.warn('[剪切板] 写入 PC 系统剪切板失败:', writeErr.message);
     }
 
+    broadcastUpdate('NEW_CLIPBOARD');
+
     res.json({ success: true, message: msg });
   } catch (err) {
     console.error('[剪切板] 设置失败:', err.message);
@@ -71,6 +74,7 @@ router.post('/', async (req, res) => {
 router.delete('/', (req, res) => {
   try {
     clipboard.clearHistory();
+    broadcastUpdate('DELETE_CLIPBOARD');
     res.json({ success: true, message: '历史记录已清空' });
   } catch (err) {
     res.status(500).json({ success: false, error: '清空历史记录失败' });
