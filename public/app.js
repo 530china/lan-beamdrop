@@ -38,8 +38,33 @@ document.addEventListener('DOMContentLoaded', () => {
   let searchType = 'all';
   const inputSearchKeyword = document.getElementById('search-keyword');
   const searchFilters = document.getElementById('search-filters');
+  const btnSearchToggle = document.getElementById('btn-search-toggle');
+  const chatSearchBar = document.getElementById('chat-search-bar');
 
   let forceNextScrollBottom = false;
+
+  if (btnSearchToggle && chatSearchBar) {
+    btnSearchToggle.addEventListener('click', () => {
+      const isActive = chatSearchBar.classList.toggle('active');
+      if (isActive) {
+        if (inputSearchKeyword) inputSearchKeyword.focus();
+      } else {
+        // 关闭时自动清空搜索状态
+        if (searchKeyword !== '' || searchType !== 'all') {
+          if (inputSearchKeyword) inputSearchKeyword.value = '';
+          searchKeyword = '';
+          searchType = 'all';
+          if (searchFilters) {
+            searchFilters.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+            const defaultPill = searchFilters.querySelector('[data-type="all"]');
+            if (defaultPill) defaultPill.classList.add('active');
+          }
+          forceNextScrollBottom = true;
+          applySearchAndRender();
+        }
+      }
+    });
+  }
 
   if (inputSearchKeyword) {
     inputSearchKeyword.addEventListener('input', (e) => {

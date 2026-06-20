@@ -73,6 +73,12 @@ body {
   border: 1px solid var(--card-border);
 }
 
+@media (max-width: 768px) {
+  .device-badge {
+    display: none;
+  }
+}
+
 .status-dot {
   width: 10px;
   height: 10px;
@@ -331,6 +337,17 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   z-index: 10;
+  display: none;
+}
+
+.chat-search-bar.active {
+  display: block;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .search-input-wrapper {
