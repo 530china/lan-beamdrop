@@ -36,3 +36,9 @@ Before you complete a task or tell the user "I am done", you MUST execute the fo
    - If **YES**, you MUST proactively open and modify `docs/ARCHITECTURE.md` to reflect the new reality. 
    - **Never leave the documentation out of sync with the codebase.**
 3. **Frontend Visual QA (Visual Stacking & Modals)**: If you made changes to frontend UI elements (especially `z-index`, modals, or error toasts), you **MUST** verify the visual stacking context. Do not assume `showToast` or an HTML overlay works without visual verification. Use the Chrome DevTools MCP or instruct the user to verify overlapping UI elements (Happy Path & Error Path) on both desktop and mobile views before marking UI tasks as done.
+
+## 7. Git Workflow & Remote Repository Constraints
+**CRITICAL: NEVER Push Directly to the Main Branch (`origin/main`).**
+1. All feature developments, bug fixes, and tests must be committed to a dedicated **feature branch** (e.g., `feat/xxx`, `fix/xxx`).
+2. When pushing code to the remote repository, push the feature branch (`git push origin <branch-name>`).
+3. Inform the user that the branch has been pushed and a **Pull Request (PR)** needs to be manually created by the repository manager. The code will only be merged into `main` after passing the CI checks.
