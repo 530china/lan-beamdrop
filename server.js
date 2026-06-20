@@ -12,6 +12,7 @@ getSettings();
 const { getPrimaryIP, getLocalIPs, isLocalHostReq } = require('./utils/network');
 const { startMdns } = require('./utils/mdns');
 const { checkUpdate } = require('./utils/update');
+const { initWebSocketServer } = require('./utils/websocket');
 const filesRouter = require('./routes/files');
 const clipboardRouter = require('./routes/clipboard');
 const settingsRouter = require('./routes/settings');
@@ -135,7 +136,7 @@ if (!fs.existsSync(config.shareDir)) {
   fs.mkdirSync(config.shareDir, { recursive: true });
 }
 
-app.listen(config.port, '0.0.0.0', () => {
+const server = app.listen(config.port, '0.0.0.0', () => {
   const ip = getPrimaryIP();
   const url = `http://${ip}:${config.port}`;
 
@@ -171,6 +172,14 @@ app.listen(config.port, '0.0.0.0', () => {
   // 启动 mDNS 广播
   startMdns(config.port);
 });
+
+// 初始化 WebSocket 服务
+const { broadcastUpdate } = require('./utils/websocket');
+initWebSocketServer(server);
+
+// 启动系统剪切板监控
+const { startClipboardMonitor } = require('./utils/clipboard');
+startClipboardMonitor(broadcastUpdate);
 
 // 优雅退出
 process.on('SIGINT', () => {

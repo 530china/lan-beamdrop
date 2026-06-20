@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const config = require('../config');
+const { broadcastUpdate } = require('../utils/websocket');
 
 const router = express.Router();
 
@@ -214,6 +215,8 @@ router.post('/upload', (req, res, next) => {
 
     console.log(`[文件] 收到 ${uploaded.length} 个文件:`, uploaded.map((f) => f.name).join(', '));
 
+    broadcastUpdate('NEW_FILE');
+
     res.json({
       success: true,
       message: `成功上传 ${uploaded.length} 个文件`,
@@ -246,6 +249,8 @@ router.delete('/:filename', (req, res) => {
 
     fs.unlinkSync(filePath);
     console.log(`[文件] 已删除: ${filename}`);
+
+    broadcastUpdate('DELETE_FILE');
 
     res.json({ success: true, message: `已删除 ${filename}` });
   } catch (err) {

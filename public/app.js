@@ -576,8 +576,53 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  setInterval(fetchUnifiedMessages, 2000);
-  fetchUnifiedMessages();
+  // --- WebSocket Real-Time Engine ---
+  let ws = null;
+  let wsReconnectTimer = null;
+
+  function connectWebSocket() {
+    if (ws) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/`;
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('[WebSocket] Connected to real-time engine');
+      if (wsReconnectTimer) {
+        clearInterval(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+      fetchUnifiedMessages(); // Fetch once on connect to catch up
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data && data.type) {
+          // Trigger a UI update instantly when a broadcast is received
+          fetchUnifiedMessages();
+        }
+      } catch (err) {
+        console.error('[WebSocket] Message parse error:', err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[WebSocket] Disconnected. Reconnecting in 3s...');
+      ws = null;
+      if (!wsReconnectTimer) {
+        wsReconnectTimer = setInterval(connectWebSocket, 3000);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error('[WebSocket] Error:', err);
+      if (ws) ws.close(); // Force close to trigger reconnect
+    };
+  }
+
+  // Initialize WebSockets instead of polling
+  connectWebSocket();
 
   async function fetchUnifiedMessages() {
     try {

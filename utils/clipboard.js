@@ -125,7 +125,7 @@ function setSharedClipboard(data) {
  * 从 PC 系统剪切板同步到共享剪切板
  */
 async function syncFromPC() {
-  if (isWritingToPC) return clipboardHistory;
+  if (isWritingToPC) return false;
   try {
     const content = readNativeClipboard();
     if (content && content !== lastPCClipboard) {
@@ -139,13 +139,24 @@ async function syncFromPC() {
       };
       clipboardHistory.push(msg);
       saveHistory();
+      return true;
     }
-    return clipboardHistory;
+    return false;
   } catch (err) {
-    // 忽略错误：如果电脑剪切板为空，或包含非文本数据（如图片），
-    // 可能会报错，这里直接返回现有历史记录即可，不中断流程。
-    return clipboardHistory;
+    // 忽略错误
+    return false;
   }
+}
+
+let monitorTimer = null;
+function startClipboardMonitor(broadcastUpdate) {
+  if (monitorTimer) clearInterval(monitorTimer);
+  monitorTimer = setInterval(async () => {
+    const changed = await syncFromPC();
+    if (changed && typeof broadcastUpdate === 'function') {
+      broadcastUpdate('NEW_CLIPBOARD');
+    }
+  }, 1000); // 每秒主动探测一次系统剪切板
 }
 
 /**
@@ -170,4 +181,5 @@ module.exports = {
   syncFromPC,
   writeToPC,
   clearHistory,
+  startClipboardMonitor,
 };
