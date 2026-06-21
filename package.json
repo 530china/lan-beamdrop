@@ -21,6 +21,7 @@
     "build": "pkg . --out-path dist"
   },
   "dependencies": {
+    "archiver": "^8.0.0",
     "bonjour-service": "^1.2.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

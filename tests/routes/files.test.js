@@ -20,6 +20,23 @@ jest.mock('jimp', () => {
   };
 });
 
+jest.mock('archiver', () => {
+  return {
+    ZipArchive: jest.fn().mockImplementation(() => {
+      const { PassThrough } = require('stream');
+      const archive = new PassThrough();
+      archive.file = jest.fn((filepath, options) => {
+        // mock file append
+      });
+      archive.finalize = jest.fn(() => {
+        archive.write('FAKE_ZIP_DATA');
+        archive.end();
+      });
+      return archive;
+    })
+  };
+});
+
 // === Memory FS Mock ===
 let mockMemoryFs = {};
 
@@ -289,5 +306,93 @@ describe('Files API Routes (Mocked FS)', () => {
     const response = await request(app).get('/api/files/download/..%2f..%2fconfig.js');
     expect(response.status).toBe(403);
     expect(response.body.error).toBe('非法路径');
+  });
+
+  describe('GET /api/files/download-zip (一键打包)', () => {
+    test('应该能成功流式打包有效文件', async () => {
+      const file1 = path.join(TEST_DIR, 'valid1.jpg');
+      const file2 = path.join(TEST_DIR, 'valid2.txt');
+      mockMemoryFs[file1] = { type: 'file', content: Buffer.from('img data') };
+      mockMemoryFs[file2] = { type: 'file', content: Buffer.from('text data') };
+
+      const response = await request(app).get('/api/files/download-zip?files=valid1.jpg,valid2.txt');
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toBe('application/zip');
+      expect(response.text).toBe('FAKE_ZIP_DATA');
+    });
+
+    test('部分文件缺失时，应该忽略不存在的文件并继续打包存在的文件', async () => {
+      const file1 = path.join(TEST_DIR, 'exist.txt');
+      mockMemoryFs[file1] = { type: 'file', content: Buffer.from('data') };
+
+      const response = await request(app).get('/api/files/download-zip?files=exist.txt,missing.jpg');
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toBe('application/zip');
+      expect(response.text).toBe('FAKE_ZIP_DATA');
+    });
+
+    test('全部文件不存在时，应抛出404防止生成空ZIP', async () => {
+      const response = await request(app).get('/api/files/download-zip?files=missing1.txt,missing2.txt');
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error).toBe('没有找到可打包的有效文件');
+    });
+
+    test('参数为空时应该返回400', async () => {
+      const response = await request(app).get('/api/files/download-zip?files=');
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
+
+    test('应该强力拦截任何目录穿越攻击 (Path Traversal)', async () => {
+      const response = await request(app).get('/api/files/download-zip?files=../../../Windows/system.ini');
+      // 因为文件不存在，并且唯一的文件非法，所以没有有效文件，返回 404
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe('没有找到可打包的有效文件');
+    });
+
+    test('支持以数组形式传递 files 参数 (files[]=a&files[]=b)', async () => {
+      const file1 = path.join(TEST_DIR, 'valid1.jpg');
+      mockMemoryFs[file1] = { type: 'file', content: Buffer.from('img data') };
+
+      const response = await request(app).get('/api/files/download-zip?files[]=valid1.jpg');
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toBe('application/zip');
+      expect(response.text).toBe('FAKE_ZIP_DATA');
+    });
+  });
+
+  describe('GET /api/files/check-zip', () => {
+    test('全部文件存在时，应返回 valid: true', async () => {
+      const file1 = path.join(TEST_DIR, 'exist1.txt');
+      const file2 = path.join(TEST_DIR, 'exist2.jpg');
+      mockMemoryFs[file1] = { type: 'file', content: Buffer.from('data') };
+      mockMemoryFs[file2] = { type: 'file', content: Buffer.from('data') };
+
+      const response = await request(app).get('/api/files/check-zip?files[]=exist1.txt&files[]=exist2.jpg');
+      expect(response.status).toBe(200);
+      expect(response.body.valid).toBe(true);
+    });
+
+    test('部分文件缺失但仍有文件存在时，应返回 valid: true', async () => {
+      const file1 = path.join(TEST_DIR, 'exist.txt');
+      mockMemoryFs[file1] = { type: 'file', content: Buffer.from('data') };
+
+      const response = await request(app).get('/api/files/check-zip?files[]=exist.txt&files[]=missing.jpg');
+      expect(response.status).toBe(200);
+      expect(response.body.valid).toBe(true);
+    });
+
+    test('全部文件缺失时，应返回 valid: false', async () => {
+      const response = await request(app).get('/api/files/check-zip?files[]=missing1.txt&files[]=missing2.jpg');
+      expect(response.status).toBe(200);
+      expect(response.body.valid).toBe(false);
+    });
+
+    test('参数为空时应该返回400', async () => {
+      const response = await request(app).get('/api/files/check-zip');
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
   });
 });

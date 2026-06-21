@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const batchActionBar = document.getElementById('batch-action-bar');
   const batchSelectedCount = document.getElementById('batch-selected-count');
   const btnBatchDelete = document.getElementById('btn-batch-delete');
+  const btnBatchDownload = document.getElementById('btn-batch-download');
   const btnBatchCancel = document.getElementById('btn-batch-cancel');
 
   let isBatchMode = false;
@@ -950,7 +951,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (msg.type === 'image_album') {
       div.dataset.imgCount = msg.images.length;
       let albumValue = msg.images.map(img => encodeURIComponent(img.content)).join('|');
-      let gridHtml = `<div class="nine-grid" data-count="${msg.images.length}">`;
+      let gridHtml = `
+        <div class="album-header">
+          <span class="album-title">🖼️ 图片相册 (${msg.images.length}张)</span>
+          <button class="btn-download-album" data-files="${albumValue}" title="打包下载整个相册">📦 提取打包</button>
+        </div>
+        <div class="nine-grid" data-count="${msg.images.length}">`;
       msg.images.slice(0, 9).forEach((img, idx) => {
         const thumbUrl = `/api/files/thumbnail/${encodeURIComponent(img.content)}`;
         if (idx === 8 && msg.images.length > 9) {
@@ -1259,7 +1265,29 @@ document.addEventListener('DOMContentLoaded', () => {
     dragCounter = 0;
     dragOverlay.classList.add('hidden');
 
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer && e.dataTransfer.items) {
+      const items = Array.from(e.dataTransfer.items);
+      let hasDirectory = false;
+      
+      items.forEach(item => {
+        if (item.kind === 'file') {
+          const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+          if (entry && entry.isDirectory) {
+            hasDirectory = true;
+          } else {
+            const file = item.getAsFile();
+            if (file) {
+              uploadFileAsMessage(file);
+            }
+          }
+        }
+      });
+      
+      if (hasDirectory) {
+        showToast('📁 不支持直接发送文件夹，请先将其压缩为 .zip 后再拖入。', 'error');
+      }
+    } else if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      // Fallback for older browsers
       const files = Array.from(e.dataTransfer.files);
       files.forEach(file => {
         uploadFileAsMessage(file);
@@ -1578,6 +1606,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnBatchCancel) btnBatchCancel.addEventListener('click', () => exitBatchMode());
 
+
+  if (btnBatchDownload) {
+    btnBatchDownload.addEventListener('click', () => {
+      if (selectedFiles.size === 0) return;
+      const itemsArray = Array.from(selectedFiles);
+      const filesToDownload = itemsArray.filter(item => item.startsWith('file:')).map(item => decodeURIComponent(item.substring(5)));
+      const albumsToDownload = itemsArray.filter(item => item.startsWith('album:')).map(item => item.substring(6));
+      albumsToDownload.forEach(albumStr => {
+        albumStr.split('|').forEach(file => filesToDownload.push(decodeURIComponent(file)));
+      });
+      
+      if (filesToDownload.length > 0) {
+        const queryParams = filesToDownload.map(f => `files[]=${encodeURIComponent(f)}`).join('&');
+        const checkUrl = `/api/files/check-zip?${queryParams}`;
+        const url = `/api/files/download-zip?type=batch&${queryParams}`;
+        
+        fetch(checkUrl).then(res => res.json()).then(data => {
+          if (data.valid) {
+            const a = document.createElement('a');
+            a.href = url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            exitBatchMode();
+          } else {
+            showToast('选中的文件不存在或已被删除，无法打包', 'error');
+          }
+        }).catch(() => showToast('网络错误', 'error'));
+      } else {
+        // 如果全部是纯文本（没有提取出任何有效文件）
+        showToast('请至少选择一个文件或相册，纯文本暂不支持打包下载。', 'error');
+      }
+    });
+  }
+
   if (btnBatchDelete) {
     btnBatchDelete.addEventListener('click', async () => {
       if (selectedFiles.size === 0) return;
@@ -1675,6 +1738,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 代理复选框和卡片点击事件
   chatMessages.addEventListener('click', (e) => {
+    // 处理相册提取按钮点击 (不限批量模式)
+    if (e.target.classList.contains('btn-download-album')) {
+      const filesStr = e.target.dataset.files;
+      if (filesStr) {
+        // filesStr 已经是 encodeURIComponent(filename) 用 '|' 拼接的了
+        const filesToDownload = filesStr.split('|').map(f => decodeURIComponent(f));
+        const queryParams = filesToDownload.map(f => `files[]=${encodeURIComponent(f)}`).join('&');
+        const checkUrl = `/api/files/check-zip?${queryParams}`;
+        const url = `/api/files/download-zip?type=album&${queryParams}`;
+        
+        fetch(checkUrl).then(res => res.json()).then(data => {
+          if (data.valid) {
+            const a = document.createElement('a');
+            a.href = url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else {
+            showToast('相册中的图片不存在或已被删除，无法打包', 'error');
+          }
+        }).catch(() => showToast('网络错误', 'error'));
+      }
+      return;
+    }
+
     if (!isBatchMode) return;
 
     const messageRow = e.target.closest('.message-row');

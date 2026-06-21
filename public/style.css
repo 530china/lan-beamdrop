@@ -816,6 +816,36 @@ body {
   transform: scale(1.02);
 }
 
+/* --- 相册 Header --- */
+.album-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.album-title {
+  font-size: 0.85rem;
+  color: #d1d5db;
+  font-weight: 500;
+}
+.btn-download-album {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-download-album:hover {
+  background: rgba(99, 102, 241, 0.4);
+  color: #fff;
+}
+
 /* --- 九宫格图集 --- */
 .nine-grid {
   display: grid;

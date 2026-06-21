@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { Jimp } = require('jimp');
+const archiver = require('archiver');
 const config = require('../config');
 const { broadcastUpdate } = require('../utils/websocket');
 
@@ -156,6 +157,135 @@ router.get('/thumbnail/:filename', async (req, res) => {
   } catch (err) {
     console.error('[缩略图] 请求异常:', err.message);
     res.status(500).json({ success: false, error: '获取缩略图失败' });
+  }
+});
+
+/**
+ * GET /api/files/download-zip
+ * 批量下载指定文件，动态打包为 ZIP (流式输出，不写磁盘)
+ */
+router.get('/download-zip', (req, res) => {
+  try {
+    let files = req.query.files;
+    if (!files) {
+      return res.status(400).json({ success: false, error: '未指定要下载的文件' });
+    }
+
+    if (!Array.isArray(files)) {
+      // 兼容旧的逗号分隔（虽然前端已更新，但为了鲁棒性保留）
+      files = typeof files === 'string' && files.includes(',') ? files.split(',') : [files];
+    }
+    
+    // 移除空白字符
+    files = files.map(f => f.trim()).filter(f => f);
+
+    if (files.length === 0) {
+      return res.status(400).json({ success: false, error: '文件列表为空' });
+    }
+
+    const archive = new archiver.ZipArchive({
+      zlib: { level: 1 } // 设置为 1 降低压缩级别，追求极限打包速度
+    });
+
+    let hasFiles = false;
+
+    // 遍历添加文件
+    for (const filename of files) {
+      if (!filename) continue;
+      
+      const filePath = path.join(config.shareDir, filename);
+      const resolvedPath = path.resolve(filePath);
+      
+      console.log(`[download-zip] 请求文件: "${filename}", 是否存在: ${fs.existsSync(filePath)}`);
+
+      // 安全检查：防目录穿越攻击
+      if (!resolvedPath.startsWith(path.resolve(config.shareDir))) {
+        console.warn(`[打包下载] 拦截非法路径尝试: ${filename}`);
+        continue;
+      }
+
+      if (fs.existsSync(filePath)) {
+        const stat = fs.statSync(filePath);
+        // 忽略处于上传中的临时文件
+        if (!filename.endsWith('.uploading') && stat.isFile()) {
+          archive.file(filePath, { name: filename });
+          hasFiles = true;
+        }
+      } else {
+        console.warn(`[打包下载] 文件不存在被跳过: ${filename}`);
+      }
+    }
+
+    if (!hasFiles) {
+      // 如果没有一个有效文件，立刻返回错误，防止生成一个空 zip
+      return res.status(404).json({ success: false, error: '没有找到可打包的有效文件' });
+    }
+
+    // 动态生成带有时间戳的文件名，避免每次下载名称都一样
+    const downloadType = req.query.type === 'album' ? 'Album' : 'Batch';
+    // 例如：LANBeamDrop_Album_2023-10-24_15-30-22.zip
+    const timestamp = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/[:\s\/]/g, '_');
+    
+    // 设置响应头，告诉浏览器这是一个 ZIP 下载流
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="LANBeamDrop_${downloadType}_${timestamp}.zip"`);
+
+    // 监听错误
+    archive.on('error', (err) => {
+      console.error('[打包下载] Archiver 错误:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: '打包过程中发生错误' });
+      }
+    });
+
+    // 管道连接到 HTTP 响应
+    archive.pipe(res);
+
+    // 完成打包并结束流
+    archive.finalize();
+
+  } catch (err) {
+    console.error('[打包下载] 错误:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: '服务端内部错误' });
+    }
+  }
+});
+
+// GET /api/files/check-zip
+// 用于前端预检，防止点击下载时页面跳转到错误 JSON
+router.get('/check-zip', (req, res) => {
+  try {
+    let files = req.query.files;
+    if (!files) return res.status(400).json({ success: false, error: '未指定要检查的文件' });
+    
+    if (!Array.isArray(files)) {
+      files = typeof files === 'string' && files.includes(',') ? files.split(',') : [files];
+    }
+    
+    files = files.map(f => f.trim()).filter(f => f);
+
+    for (const filename of files) {
+      const filePath = path.join(config.shareDir, filename);
+      const resolvedPath = path.resolve(filePath);
+      if (!resolvedPath.startsWith(path.resolve(config.shareDir))) {
+        console.log(`[check-zip] 路径越界: ${resolvedPath}`);
+        continue;
+      }
+
+      console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: ${fs.existsSync(filePath)}`);
+
+      if (fs.existsSync(filePath)) {
+        const stat = fs.statSync(filePath);
+        if (!filename.endsWith('.uploading') && stat.isFile()) {
+          // 只要找到一个有效文件即可打包
+          return res.json({ valid: true });
+        }
+      }
+    }
+    return res.json({ valid: false });
+  } catch (err) {
+    return res.json({ valid: false });
   }
 });
 
