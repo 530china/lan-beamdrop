@@ -26,14 +26,13 @@ function initWebSocketServer(server) {
 
 /**
  * Broadcasts an event to all connected WebSocket clients.
- * This triggers the frontend to fetch the latest data instantly.
- * @param {string} type - Event type (e.g., 'UPDATE')
- * @param {any} payload - Optional payload data
+ * @param {string} action - Event action (e.g., 'FILE_ADDED')
+ * @param {any} data - Optional payload data
  */
-function broadcastUpdate(type = 'UPDATE', payload = null) {
+function broadcastUpdate(action = 'UPDATE', data = null) {
   if (!wss) return;
   
-  const message = JSON.stringify({ type, payload });
+  const message = JSON.stringify({ action, data });
   let count = 0;
   
   wss.clients.forEach((client) => {

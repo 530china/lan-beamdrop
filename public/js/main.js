@@ -1,3 +1,7 @@
+import { formatBytes, escapeHtml, showToast } from './utils.js';
+import { apiConfig, fetchFiles, fetchClipboard, deleteFile, uploadFileChunked } from './api.js';
+import { renderChatHistory, doCopy } from './ui.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
   const headerDeviceName = document.getElementById('device-name');
@@ -658,10 +662,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data && data.type) {
-          // Trigger a UI update instantly when a broadcast is received
-          fetchUnifiedMessages();
+        const payload = JSON.parse(event.data);
+        if (payload && payload.action) {
+          if (payload.action === 'FILE_ADDED') {
+            const files = Array.isArray(payload.data.files) ? payload.data.files : [payload.data.files];
+            files.forEach(file => {
+               const msg = {
+                 id: 'file_' + file.name + '_' + file.mtime,
+                 type: 'file',
+                 content: file.name,
+                 fileUrl: '/api/files/download/' + encodeURIComponent(file.name),
+                 fileSize: file.size,
+                 clientId: 'HOST',
+                 deviceName: '🖥️ 服务端文件 (' + window.location.hostname + ')',
+                 timestamp: file.mtime
+               };
+               fullUnifiedHistory.push(msg);
+            });
+            applySearchAndRender();
+            scrollToBottom(true);
+          } else if (payload.action === 'CLIPBOARD_ADDED') {
+            const msg = {
+               ...payload.data,
+               type: 'text'
+            };
+            fullUnifiedHistory.push(msg);
+            applySearchAndRender();
+            scrollToBottom(true);
+          } else if (payload.action === 'FILE_DELETED') {
+            const deletedFiles = payload.data.deletedFiles || [];
+            fullUnifiedHistory = fullUnifiedHistory.filter(h => !(h.type === 'file' && deletedFiles.includes(h.content)));
+            applySearchAndRender();
+          } else if (payload.action === 'CLIPBOARD_DELETED') {
+            if (payload.data && payload.data.ids) {
+              const ids = payload.data.ids;
+              fullUnifiedHistory = fullUnifiedHistory.filter(h => !(h.type === 'text' && ids.includes(h.id)));
+            } else {
+              fullUnifiedHistory = fullUnifiedHistory.filter(h => h.type !== 'text');
+            }
+            applySearchAndRender();
+          }
         }
       } catch (err) {
         console.error('[WebSocket] Message parse error:', err);
@@ -688,8 +728,8 @@ document.addEventListener('DOMContentLoaded', () => {
   async function fetchUnifiedMessages() {
     try {
       const [clipRes, filesRes] = await Promise.all([
-        fetch('/api/clipboard'),
-        fetch('/api/files')
+        fetchClipboard(),
+        fetchFiles()
       ]);
       
       let history = [];
@@ -786,286 +826,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentKey = history.map(h => h.id + '_' + (h.progress || 0) + '_' + (h.speed || '')).join(',');
     if (currentKey !== lastMessagesKey) {
       lastMessagesKey = currentKey;
-      renderChatHistory(history);
-    }
-  }
-
-  function renderChatHistory(history) {
-    if (!history || history.length === 0) return;
-    
-    const oldScrollTop = chatMessages.scrollTop;
-    const oldScrollHeight = chatMessages.scrollHeight;
-    let isAtBottom = oldScrollHeight - chatMessages.clientHeight <= oldScrollTop + 10;
-    
-    if (forceNextScrollBottom) {
-      isAtBottom = true;
-      forceNextScrollBottom = false;
-    }
-
-    const empty = chatMessages.querySelector('.empty-state');
-    if (empty) empty.remove();
-    
-    // 1. Pre-process history into groupedHistory
-    const groupedHistory = [];
-    let currentGroup = null;
-
-    history.forEach(msg => {
-      const isImg = msg.type === 'file' && isImage(msg.content);
-
-      if (isImg) {
-        if (currentGroup && currentGroup.type === 'image_album' && currentGroup.clientId === msg.clientId && (new Date(msg.timestamp).getTime() - new Date(currentGroup.timestamp).getTime() <= 120000)) {
-          currentGroup.images.push(msg);
-        } else {
-          currentGroup = {
-            type: 'image_album',
-            id: 'album_' + msg.id,
-            clientId: msg.clientId,
-            deviceName: msg.deviceName,
-            timestamp: msg.timestamp,
-            images: [msg]
-          };
-          groupedHistory.push(currentGroup);
-        }
-      } else {
-        currentGroup = null;
-        groupedHistory.push(msg);
-      }
-    });
-
-    // 2. Incremental DOM update
-    const existingNodesMap = new Map();
-    Array.from(chatMessages.children).forEach(child => {
-      if (child.dataset.groupId) {
-        existingNodesMap.set(child.dataset.groupId, child);
-      }
-    });
-
-    const newContainer = document.createDocumentFragment();
-    let domChanged = false;
-
-    groupedHistory.forEach(item => {
-      const groupId = item.id;
-      let existingNode = existingNodesMap.get(groupId);
-      let needsRender = true;
-
-      if (existingNode) {
-        if (item.type === 'image_album') {
-          if (parseInt(existingNode.dataset.imgCount) === item.images.length) {
-            needsRender = false;
-          }
-        } else if (item.type === 'upload') {
-          needsRender = true; 
-        } else {
-          needsRender = false;
-        }
-      }
-
-      if (!needsRender) {
-        newContainer.appendChild(existingNode);
-        existingNodesMap.delete(groupId);
-      } else {
-        domChanged = true;
-        const div = createMessageNode(item);
-        newContainer.appendChild(div);
-      }
-    });
-
-    if (existingNodesMap.size > 0 || domChanged) {
-      chatMessages.innerHTML = '';
-      chatMessages.appendChild(newContainer);
-      updateBatchUI(); // sync checkboxes if any
-    }
-    
-    if (isAtBottom && domChanged) {
-      setTimeout(() => chatMessages.scrollTop = chatMessages.scrollHeight, 50);
-    }
-  }
-
-  function doCopy(encodedText, btnEl) {
-    const text = decodeURIComponent(encodedText);
-    const showSuccess = (el) => {
-      showToast('已复制到剪贴板', 'success');
-      if (el && el.tagName === 'BUTTON') {
-         const originalText = el.innerHTML;
-         el.innerHTML = '已复制';
-         setTimeout(() => el.innerHTML = originalText, 2000);
-      }
-    };
-    const fallbackCopy = (text, el) => {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.top = "0";
-      textArea.style.left = "0";
-      textArea.style.position = "fixed";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        if (document.execCommand('copy')) showSuccess(el);
-        else showToast('复制失败', 'error');
-      } catch (err) {
-        showToast('复制失败', 'error');
-      }
-      document.body.removeChild(textArea);
-    };
-
-    if (navigator.clipboard && window.isSecureContext) {
-       navigator.clipboard.writeText(text).then(() => showSuccess(btnEl)).catch(() => fallbackCopy(text, btnEl));
-    } else {
-       fallbackCopy(text, btnEl);
-    }
-  }
-
-  function createMessageNode(msg) {
-    const isSelf = msg.clientId === myClientId;
-    const div = document.createElement('div');
-    div.className = `chat-message ${isSelf ? 'self' : 'other'}`;
-    div.dataset.groupId = msg.id;
-
-    const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    let metaHtml = `<span class="time">${time}</span> <span>${msg.deviceName}</span>`;
-    
-    if (msg.type === 'text') {
-      if (!isSelf) {
-        metaHtml += `<button class="btn-copy-msg" data-text="${encodeURIComponent(msg.content)}">复制内容</button>`;
-      }
-      div.innerHTML = `
-        <div class="message-row">
-          <div class="batch-checkbox-wrapper">
-            <input type="checkbox" class="batch-checkbox" value="msg:${msg.id}">
-          </div>
-          <div class="message-content">
-            <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="">${escapeHtml(msg.content)}</div>
-            <div class="chat-meta">${metaHtml}</div>
-          </div>
-        </div>
-      `;
-
-      // bind events
-      const copyBtn = div.querySelector('.btn-copy-msg');
-      if (copyBtn) copyBtn.onclick = (e) => { if(!isBatchMode) { e.stopPropagation(); doCopy(copyBtn.dataset.text, copyBtn); } };
-      
-      const textBubble = div.querySelector('.text-bubble');
-      if (textBubble) textBubble.onclick = (e) => { if(!isBatchMode) { e.stopPropagation(); doCopy(textBubble.dataset.text, null); } };
-
-    } else if (msg.type === 'image_album') {
-      div.dataset.imgCount = msg.images.length;
-      let albumValue = msg.images.map(img => encodeURIComponent(img.content)).join('|');
-      let gridHtml = `
-        <div class="album-header">
-          <span class="album-title">🖼️ 图片相册 (${msg.images.length}张)</span>
-          <button class="btn-download-album" data-files="${albumValue}" title="打包下载整个相册">📦 提取打包</button>
-        </div>
-        <div class="nine-grid" data-count="${msg.images.length}">`;
-      msg.images.slice(0, 9).forEach((img, idx) => {
-        const thumbUrl = `/api/files/thumbnail/${encodeURIComponent(img.content)}`;
-        if (idx === 8 && msg.images.length > 9) {
-          gridHtml += `
-            <div class="img-wrapper">
-              <img src="${thumbUrl}" class="image-preview grid-img" data-src="${img.fileUrl}" data-name="${escapeHtml(img.content)}" alt="${escapeHtml(img.content)}" title="">
-              <div class="more-overlay" style="pointer-events: none;">+${msg.images.length - 9}</div>
-            </div>
-          `;
-        } else {
-          gridHtml += `<img src="${thumbUrl}" class="image-preview grid-img" data-src="${img.fileUrl}" data-name="${escapeHtml(img.content)}" alt="${escapeHtml(img.content)}" title="">`;
-        }
-      });
-      gridHtml += `</div>`;
-
-      div.innerHTML = `
-        <div class="message-row">
-          <div class="batch-checkbox-wrapper">
-            <input type="checkbox" class="batch-checkbox" value="album:${albumValue}">
-          </div>
-          <div class="message-content">
-            <div class="chat-bubble file-card image-album-card" data-filename="${albumValue}">
-              ${gridHtml}
-            </div>
-            <div class="chat-meta">${metaHtml}</div>
-          </div>
-        </div>
-      `;
-
-      const images = div.querySelectorAll('.image-preview, .more-overlay');
-      const albumImages = msg.images;
-      images.forEach((img, idx) => {
-        // Find closest image-preview if clicked on overlay
-        let realImg = img.classList.contains('image-preview') ? img : img.parentElement.querySelector('.image-preview');
-        if(!realImg) return;
-        img.onclick = (e) => {
-          if(isBatchMode) return;
-          e.stopPropagation();
-          // The index for overlay is also 8
-          let clickedIdx = idx > 8 ? 8 : idx;
-          if (window.openGallery) {
-             window.openGallery(albumImages, clickedIdx);
-          }
-        };
-      });
-
-    } else if (msg.type === 'file') {
-      const sizeStr = formatSize(msg.fileSize);
-      const icon = getFileIcon(msg.content);
-      div.innerHTML = `
-        <div class="message-row">
-          <div class="batch-checkbox-wrapper">
-            <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
-          </div>
-          <div class="message-content">
-            <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 0;">
-              <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px;">
-                <div class="file-icon-large">${icon}</div>
-                <div class="file-details">
-                  <span class="file-name">${escapeHtml(msg.content)}</span>
-                  <span class="file-size">${sizeStr}</span>
-                </div>
-              </a>
-            </div>
-            <div class="chat-meta">${metaHtml}</div>
-          </div>
-        </div>
-      `;
-      
-      const fileCard = div.querySelector('.file-card');
-      const aLink = div.querySelector('a');
-      if (aLink) aLink.onclick = (e) => { if(isBatchMode) e.preventDefault(); };
-
-    } else if (msg.type === 'upload') {
-      const icon = getFileIcon(msg.content);
-      div.innerHTML = `
-        <div class="file-bubble">
-          <div class="file-icon-large">${icon}</div>
-          <div class="file-details">
-            <span class="file-name">${escapeHtml(msg.content)}</span>
-            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
-              <span class="file-size">${msg.fileSize}</span>
-              <span id="speed_${msg.id}" style="color: var(--primary-color);">${msg.speed || ''}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
-                 <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
-              </div>
-              <button class="btn-cancel-upload" data-id="${msg.id}" title="取消上传" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">✖</button>
-            </div>
-          </div>
-        </div>
-        <div class="chat-meta">${metaHtml}</div>
-      `;
-      
-      const cancelBtn = div.querySelector('.btn-cancel-upload');
-      if (cancelBtn) {
-        cancelBtn.onclick = () => {
-          const id = cancelBtn.dataset.id;
+      renderChatHistory(chatMessages, history, {
+        forceNextScrollBottom: () => {
+          const val = forceNextScrollBottom;
+          forceNextScrollBottom = false;
+          return val;
+        },
+        updateBatchUI,
+        myClientId,
+        isBatchMode: () => isBatchMode,
+        onCancelUpload: (id) => {
           if (activeXhrs.has(id)) {
             activeXhrs.get(id).abort();
             activeXhrs.delete(id);
           }
           uploadingFiles.delete(id);
           fetchUnifiedMessages();
-        };
-      }
+        },
+        onGalleryOpen: window.openGallery
+      });
     }
-    return div;
   }
 
   function uploadFileAsMessage(file) {
@@ -1081,42 +861,40 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadingFiles.set(uploadId, upObj);
     fetchUnifiedMessages().then(() => scrollToBottom(true));
     
-    const formData = new FormData();
-    formData.append('files', file);
-
-    const xhr = new XMLHttpRequest();
-    activeXhrs.set(uploadId, xhr);
-    xhr.open('POST', '/api/files/upload', true);
-
     let lastLoaded = 0;
     let lastTime = Date.now();
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const p = Math.round((e.loaded / e.total) * 100);
-        upObj.progress = p;
-        
-        const now = Date.now();
-        const diffTime = now - lastTime;
-        if (diffTime >= 500 || e.loaded === e.total) {
-          const diffLoaded = e.loaded - lastLoaded;
-          const speedBps = (diffLoaded / diffTime) * 1000;
-          upObj.speed = formatSize(speedBps) + '/s';
-          lastLoaded = e.loaded;
-          lastTime = now;
-        }
-
-        const bar = document.getElementById(`prog_${uploadId}`);
-        if(bar) bar.style.width = p + '%';
-        
-        const speedEl = document.getElementById(`speed_${uploadId}`);
-        if(speedEl) speedEl.textContent = upObj.speed;
+    const onProgress = (loaded, total) => {
+      const p = Math.round((loaded / total) * 100);
+      upObj.progress = p;
+      
+      const now = Date.now();
+      const diffTime = now - lastTime;
+      if (diffTime >= 500 || loaded === total) {
+        const diffLoaded = loaded - lastLoaded;
+        const speedBps = (diffLoaded / diffTime) * 1000;
+        upObj.speed = formatBytes(speedBps) + '/s';
+        lastLoaded = loaded;
+        lastTime = now;
       }
+
+      const bar = document.getElementById(`prog_${uploadId}`);
+      if(bar) bar.style.width = p + '%';
+      
+      const speedEl = document.getElementById(`speed_${uploadId}`);
+      if(speedEl) speedEl.textContent = upObj.speed;
     };
 
-    xhr.onload = () => {
-      activeXhrs.delete(uploadId);
-      if (xhr.status === 200) {
+    let abortUpload = () => {};
+    const onAbort = (abortFn) => {
+      abortUpload = abortFn;
+    };
+
+    activeXhrs.set(uploadId, { abort: () => abortUpload() });
+
+    uploadFileChunked(file, onProgress, onAbort)
+      .then(() => {
+        activeXhrs.delete(uploadId);
         upObj.progress = 100;
         const bar = document.getElementById(`prog_${uploadId}`);
         if(bar) bar.style.width = '100%';
@@ -1124,39 +902,22 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`发送成功: ${file.name}`, 'success');
         addLog(`发送文件: ${file.name}`);
         
-        // Keep the progress bar visible for 1 second before converting to a file bubble
         setTimeout(() => {
           uploadingFiles.delete(uploadId);
           fetchUnifiedMessages();
         }, 1000);
-      } else {
+      })
+      .catch((err) => {
+        activeXhrs.delete(uploadId);
         uploadingFiles.delete(uploadId);
-        let errorMsg = `发送失败: ${file.name}`;
-        try {
-          const res = JSON.parse(xhr.responseText);
-          if (res.error) errorMsg = `失败: ${res.error}`;
-        } catch (e) { /* ignore */ }
-        showToast(errorMsg, 'error');
+        if (err.name === 'AbortError' || err.message === 'AbortError') {
+          showToast(`已取消上传: ${file.name}`, 'info');
+          addLog(`取消发送: ${file.name}`);
+        } else {
+          showToast(`发送失败: ${err.message || file.name}`, 'error');
+        }
         fetchUnifiedMessages();
-      }
-    };
-
-    xhr.onerror = () => {
-      activeXhrs.delete(uploadId);
-      uploadingFiles.delete(uploadId);
-      showToast(`发送出错: ${file.name}`, 'error');
-      fetchUnifiedMessages();
-    };
-
-    xhr.onabort = () => {
-      activeXhrs.delete(uploadId);
-      uploadingFiles.delete(uploadId);
-      showToast(`已取消上传: ${file.name}`, 'info');
-      addLog(`取消发送: ${file.name}`);
-      fetchUnifiedMessages();
-    };
-
-    xhr.send(formData);
+      });
   }
 
   btnSendClipboard.addEventListener('click', async () => {
@@ -1295,43 +1056,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- Manual File Upload ---
+  if (btnAttach && fileUploadInput) {
+    btnAttach.addEventListener('click', () => {
+      fileUploadInput.click();
+    });
+
+    fileUploadInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length > 0) {
+        files.forEach(file => uploadFileAsMessage(file));
+        fileUploadInput.value = ''; // Reset for consecutive identical file selections
+      }
+    });
+  }
+
   // --- Utility ---
-  function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const icons = {
-      'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
-      'mp4': '🎬', 'mov': '🎬', 'avi': '🎬', 'mkv': '🎬',
-      'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
-      'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
-      'pdf': '📄', 'doc': '📝', 'docx': '📝', 'txt': '📝', 'md': '📝',
-      'apk': '📱', 'exe': '💻'
-    };
-    return icons[ext] || '📄';
-  }
-
-  function isImage(filename) {
-    return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
-  }
-
-  function formatSize(bytes) {
-    if (bytes === undefined || isNaN(bytes)) return bytes; // for "上传中..." string
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
-
-  function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
   // --- Lightbox Gallery ---
   let galleryImages = [];
   let currentGalleryIndex = 0;
@@ -1424,18 +1164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Toast ---
-  function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.style.animation = 'toastFadeOut 0.3s forwards';
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
+  
 
 // ============================================
 // 局域网测速 (Speed Test) 逻辑
@@ -1658,11 +1387,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const promises = [];
         if (filesToDelete.length > 0) {
-          promises.push(fetch('/api/files/batch-delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: filesToDelete })
-          }).then(res => res.json()));
+          promises.push(deleteFile(filesToDelete).then(res => res.json()));
         }
 
         if (msgsToDelete.length > 0) {

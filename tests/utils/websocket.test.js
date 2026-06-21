@@ -46,8 +46,8 @@ describe('WebSocket Engine', () => {
 
     wsClient.on('message', (data) => {
       const msg = JSON.parse(data.toString());
-      if (msg.type === 'TEST_EVENT') {
-        expect(msg.payload).toEqual({ hello: 'world' });
+      if (msg.action === 'TEST_EVENT') {
+        expect(msg.data).toEqual({ hello: 'world' });
         done();
       }
     });

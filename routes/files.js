@@ -21,6 +21,14 @@ if (!fs.existsSync(thumbnailsDir)) {
   console.log(`[文件] 缩略图缓存目录已创建: ${thumbnailsDir}`);
 }
 
+const chunkUploadDir = path.join(config.shareDir, '.chunks');
+if (!fs.existsSync(chunkUploadDir)) {
+  fs.mkdirSync(chunkUploadDir, { recursive: true });
+  console.log(`[文件] 切片缓存目录已创建: ${chunkUploadDir}`);
+}
+const chunkUpload = multer({ dest: chunkUploadDir });
+
+
 // 配置 multer 文件上传
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -79,6 +87,9 @@ router.get('/', (req, res) => {
         } catch (e) { /* ignore */ }
         return; // Do not expose to clients
       }
+
+      // Ignore hidden files and system directories
+      if (item.name.startsWith('.')) return;
 
       try {
         const stats = fs.statSync(filePath);
@@ -164,7 +175,7 @@ router.get('/thumbnail/:filename', async (req, res) => {
  * GET /api/files/download-zip
  * 批量下载指定文件，动态打包为 ZIP (流式输出，不写磁盘)
  */
-router.get('/download-zip', (req, res) => {
+router.get('/download-zip', async (req, res) => {
   try {
     let files = req.query.files;
     if (!files) {
@@ -195,8 +206,6 @@ router.get('/download-zip', (req, res) => {
       
       const filePath = path.join(config.shareDir, filename);
       const resolvedPath = path.resolve(filePath);
-      
-      console.log(`[download-zip] 请求文件: "${filename}", 是否存在: ${fs.existsSync(filePath)}`);
 
       // 安全检查：防目录穿越攻击
       if (!resolvedPath.startsWith(path.resolve(config.shareDir))) {
@@ -204,14 +213,17 @@ router.get('/download-zip', (req, res) => {
         continue;
       }
 
-      if (fs.existsSync(filePath)) {
-        const stat = fs.statSync(filePath);
+      try {
+        await fs.promises.access(filePath);
+        console.log(`[download-zip] 请求文件: "${filename}", 是否存在: true`);
+        const stat = await fs.promises.stat(filePath);
         // 忽略处于上传中的临时文件
         if (!filename.endsWith('.uploading') && stat.isFile()) {
           archive.file(filePath, { name: filename });
           hasFiles = true;
         }
-      } else {
+      } catch (err) {
+        console.log(`[download-zip] 请求文件: "${filename}", 是否存在: false`);
         console.warn(`[打包下载] 文件不存在被跳过: ${filename}`);
       }
     }
@@ -254,7 +266,7 @@ router.get('/download-zip', (req, res) => {
 
 // GET /api/files/check-zip
 // 用于前端预检，防止点击下载时页面跳转到错误 JSON
-router.get('/check-zip', (req, res) => {
+router.get('/check-zip', async (req, res) => {
   try {
     let files = req.query.files;
     if (!files) return res.status(400).json({ success: false, error: '未指定要检查的文件' });
@@ -273,14 +285,16 @@ router.get('/check-zip', (req, res) => {
         continue;
       }
 
-      console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: ${fs.existsSync(filePath)}`);
-
-      if (fs.existsSync(filePath)) {
-        const stat = fs.statSync(filePath);
+      try {
+        await fs.promises.access(filePath);
+        console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: true`);
+        const stat = await fs.promises.stat(filePath);
         if (!filename.endsWith('.uploading') && stat.isFile()) {
           // 只要找到一个有效文件即可打包
           return res.json({ valid: true });
         }
+      } catch (err) {
+        console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: false`);
       }
     }
     return res.json({ valid: false });
@@ -397,16 +411,23 @@ router.post('/upload', (req, res, next) => {
         return { name: f.filename, size: f.size, path: f.path };
       }
       
+      let mtime = new Date().toISOString();
+      try {
+        const stats = fs.statSync(finalPath);
+        mtime = stats.mtime.toISOString();
+      } catch (e) { /* ignore */ }
+      
       return {
         name: finalName,
         size: f.size,
         path: finalPath,
+        mtime: mtime
       };
     });
 
     console.log(`[文件] 收到 ${uploaded.length} 个文件:`, uploaded.map((f) => f.name).join(', '));
 
-    broadcastUpdate('NEW_FILE');
+    broadcastUpdate('FILE_ADDED', { files: uploaded });
 
     res.json({
       success: true,
@@ -459,7 +480,7 @@ router.post('/batch-delete', (req, res) => {
     });
 
     if (deletedFiles.length > 0) {
-      broadcastUpdate('DELETE_FILE');
+      broadcastUpdate('FILE_DELETED', { deletedFiles });
     }
 
     res.json({
@@ -496,12 +517,127 @@ router.delete('/:filename', (req, res) => {
     fs.unlinkSync(filePath);
     console.log(`[文件] 已删除: ${filename}`);
 
-    broadcastUpdate('DELETE_FILE');
+    broadcastUpdate('FILE_DELETED', { deletedFiles: [filename] });
 
     res.json({ success: true, message: `已删除 ${filename}` });
   } catch (err) {
     console.error('[文件] 删除失败:', err.message);
     res.status(500).json({ success: false, error: '删除失败' });
+  }
+});
+
+/**
+ * POST /api/files/chunk
+ * 接收文件的一个分片
+ */
+router.post('/chunk', chunkUpload.single('chunk'), (req, res) => {
+  try {
+    let { fileId, index, totalChunks, filename } = req.body;
+    if (!req.file || !fileId || index === undefined || !totalChunks || !filename) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ success: false, error: '参数不完整' });
+    }
+
+    fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
+    index = path.basename(index.toString()).replace(/[<>:"\/\\|?*]/g, '_');
+    const chunkDir = path.join(chunkUploadDir, fileId);
+    if (!fs.existsSync(chunkDir)) {
+      fs.mkdirSync(chunkDir, { recursive: true });
+    }
+
+    const chunkPath = path.join(chunkDir, index);
+    fs.renameSync(req.file.path, chunkPath);
+
+    res.json({ success: true, message: `分片 ${index} 接收成功` });
+  } catch (err) {
+    console.error('[文件] 切片上传失败:', err.message);
+    res.status(500).json({ success: false, error: '切片上传失败' });
+  }
+});
+
+/**
+ * POST /api/files/merge
+ * 所有分片上传完毕后，合并分片成最终的大文件
+ */
+router.post('/merge', async (req, res) => {
+  try {
+    let { fileId, filename, totalChunks } = req.body;
+    if (!fileId || !filename || !totalChunks) {
+      return res.status(400).json({ success: false, error: '参数不完整' });
+    }
+
+    fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
+    const chunkDir = path.join(chunkUploadDir, fileId);
+    if (!fs.existsSync(chunkDir)) {
+      return res.status(400).json({ success: false, error: '切片目录不存在' });
+    }
+    
+    // 安全检查，防路径穿越
+    let safeFilename = path.basename(decodeURIComponent(filename));
+    safeFilename = safeFilename.replace(/[<>:"\/\\|?*]/g, '_');
+    
+    // 检查是否有同名文件，添加时间戳
+    let finalPath = path.join(config.shareDir, safeFilename);
+    if (fs.existsSync(finalPath)) {
+      const ext = path.extname(safeFilename);
+      const base = path.basename(safeFilename, ext);
+      const timestamp = Date.now();
+      safeFilename = `${base}_${timestamp}${ext}`;
+      finalPath = path.join(config.shareDir, safeFilename);
+    }
+
+    const writeStream = fs.createWriteStream(finalPath);
+    
+    try {
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkPath = path.join(chunkDir, i.toString());
+        if (!fs.existsSync(chunkPath)) {
+          throw new Error(`分片 ${i} 丢失`);
+        }
+        
+        await new Promise((resolve, reject) => {
+          const readStream = fs.createReadStream(chunkPath);
+          readStream.pipe(writeStream, { end: false });
+          readStream.on('end', resolve);
+          readStream.on('error', reject);
+        });
+      }
+      
+      await new Promise((resolve, reject) => {
+        writeStream.end(resolve);
+        writeStream.on('error', reject);
+      });
+
+      // 合并成功后，清理遗留的切片目录
+      fs.rmSync(chunkDir, { recursive: true, force: true });
+
+      let mtime = new Date().toISOString();
+      let size = 0;
+      try {
+        const stats = fs.statSync(finalPath);
+        mtime = stats.mtime.toISOString();
+        size = stats.size;
+      } catch (e) {}
+
+      broadcastUpdate('FILE_ADDED', {
+        files: [{
+          name: safeFilename,
+          size: size,
+          path: finalPath,
+          mtime: mtime
+        }]
+      });
+
+      res.json({ success: true, message: '文件合并成功', file: safeFilename });
+    } catch (mergeErr) {
+      writeStream.end();
+      if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+      return res.status(400).json({ success: false, error: mergeErr.message });
+    }
+
+  } catch (err) {
+    console.error('[文件] 合并请求失败:', err.message);
+    res.status(500).json({ success: false, error: '合并请求失败' });
   }
 });
 
