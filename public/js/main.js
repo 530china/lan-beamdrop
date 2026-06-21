@@ -1056,6 +1056,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- Manual File Upload ---
+  if (btnAttach && fileUploadInput) {
+    btnAttach.addEventListener('click', () => {
+      fileUploadInput.click();
+    });
+
+    fileUploadInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length > 0) {
+        files.forEach(file => uploadFileAsMessage(file));
+        fileUploadInput.value = ''; // Reset for consecutive identical file selections
+      }
+    });
+  }
+
   // --- Utility ---
   // --- Lightbox Gallery ---
   let galleryImages = [];

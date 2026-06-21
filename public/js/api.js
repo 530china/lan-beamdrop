@@ -19,6 +19,7 @@ export async function uploadFileChunked(file, onProgress, onAbort) {
   
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
   const fileName = file.name;
+  const fileId = `${fileName}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   
   const abortController = new AbortController();
   if (onAbort) {
@@ -36,7 +37,8 @@ export async function uploadFileChunked(file, onProgress, onAbort) {
         const formData = new FormData();
         formData.append('chunk', blob);
         formData.append('filename', fileName);
-        formData.append('chunkIndex', chunkIndex);
+        formData.append('fileId', fileId);
+        formData.append('index', chunkIndex);
         formData.append('totalChunks', totalChunks);
 
         const res = await fetch(`${apiConfig.baseUrl}/files/chunk`, {
@@ -93,7 +95,7 @@ export async function uploadFileChunked(file, onProgress, onAbort) {
   const mergeRes = await fetch(`${apiConfig.baseUrl}/files/merge`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: fileName, totalChunks }),
+    body: JSON.stringify({ fileId, filename: fileName, totalChunks }),
     signal: abortController.signal
   });
 

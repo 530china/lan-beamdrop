@@ -88,6 +88,9 @@ router.get('/', (req, res) => {
         return; // Do not expose to clients
       }
 
+      // Ignore hidden files and system directories
+      if (item.name.startsWith('.')) return;
+
       try {
         const stats = fs.statSync(filePath);
         files.push({
