@@ -801,224 +801,266 @@ document.addEventListener('DOMContentLoaded', () => {
       forceNextScrollBottom = false;
     }
 
-    let newMessages = false;
-    const isInitialLoad = renderedMessageIds.size === 0;
-
-    // remove empty state if exists
     const empty = chatMessages.querySelector('.empty-state');
     if (empty) empty.remove();
     
-    chatMessages.innerHTML = '';
-    renderedMessageIds.clear();
-    
+    // 1. Pre-process history into groupedHistory
+    const groupedHistory = [];
+    let currentGroup = null;
+
     history.forEach(msg => {
-      newMessages = true;
-      renderedMessageIds.add(msg.id);
-      
-      const isSelf = msg.clientId === myClientId;
-      const div = document.createElement('div');
-      div.className = `chat-message ${isSelf ? 'self' : 'other'}`;
-      
-      const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      let metaHtml = `<span class="time">${time}</span> <span>${msg.deviceName}</span>`;
-      
-      if (msg.type === 'text') {
-        if (!isSelf) {
-          metaHtml += `<button class="btn-copy-msg" data-text="${encodeURIComponent(msg.content)}">📋 复制</button>`;
-        }
-        div.innerHTML = `
-          <div class="message-row">
-            <div class="batch-checkbox-wrapper">
-              <input type="checkbox" class="batch-checkbox" value="msg:${msg.id}">
-            </div>
-            <div class="message-content">
-              <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="点击复制">
-                ${escapeHtml(msg.content)}
-              </div>
-              <div class="chat-meta">${metaHtml}</div>
-            </div>
-          </div>
-        `;
-      } else if (msg.type === 'file') {
-        const sizeStr = formatSize(msg.fileSize);
-        if (isImage(msg.content)) {
-          div.innerHTML = `
-            <div class="message-row">
-              <div class="batch-checkbox-wrapper">
-                <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
-              </div>
-              <div class="message-content">
-                <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 4px; background: transparent; box-shadow: none;">
-                  <img src="${msg.fileUrl}" class="image-preview" data-src="${msg.fileUrl}" data-name="${escapeHtml(msg.content)}" alt="${escapeHtml(msg.content)}" title="点击查看原图">
-                </div>
-                <div class="chat-meta">${metaHtml}</div>
-              </div>
-            </div>
-          `;
+      const isImg = msg.type === 'file' && isImage(msg.content);
+
+      if (isImg) {
+        if (currentGroup && currentGroup.type === 'image_album' && currentGroup.clientId === msg.clientId && (new Date(msg.timestamp).getTime() - new Date(currentGroup.timestamp).getTime() <= 120000)) {
+          currentGroup.images.push(msg);
         } else {
-          const icon = getFileIcon(msg.content);
-          div.innerHTML = `
-            <div class="message-row">
-              <div class="batch-checkbox-wrapper">
-                <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
-              </div>
-              <div class="message-content">
-                <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 0;">
-                  <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px;">
-                    <div class="file-icon-large">${icon}</div>
-                    <div class="file-details">
-                      <span class="file-name">${escapeHtml(msg.content)}</span>
-                      <span class="file-size">${sizeStr}</span>
-                    </div>
-                  </a>
-                </div>
-                <div class="chat-meta">${metaHtml}</div>
-              </div>
-            </div>
-          `;
-        }
-      } else if (msg.type === 'upload') {
-        const icon = getFileIcon(msg.content);
-        div.innerHTML = `
-          <div class="file-bubble">
-            <div class="file-icon-large">${icon}</div>
-            <div class="file-details">
-              <span class="file-name">${escapeHtml(msg.content)}</span>
-              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
-                <span class="file-size">${msg.fileSize}</span>
-                <span id="speed_${msg.id}" style="color: var(--primary-color);">${msg.speed || ''}</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
-                   <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
-                </div>
-                <button class="btn-cancel-upload" data-id="${msg.id}" title="取消上传" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">✖</button>
-              </div>
-            </div>
-          </div>
-          <div class="chat-meta">${metaHtml}</div>
-        `;
-      }
-      chatMessages.appendChild(div);
-    });
-
-    if (newMessages) {
-      const doCopy = (encodedText, btnEl) => {
-        const text = decodeURIComponent(encodedText);
-        if (navigator.clipboard && window.isSecureContext) {
-           navigator.clipboard.writeText(text).then(() => showSuccess(btnEl)).catch(() => fallbackCopy(text, btnEl));
-        } else {
-           fallbackCopy(text, btnEl);
-        }
-      };
-
-      const showSuccess = (el) => {
-        showToast('✅ 已复制', 'success');
-        if (el && el.tagName === 'BUTTON') {
-           const originalText = el.innerHTML;
-           el.innerHTML = '✅ 已复制';
-           setTimeout(() => el.innerHTML = originalText, 2000);
-        }
-      };
-
-      const fallbackCopy = (text, el) => {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.position = "fixed";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) showSuccess(el);
-          else showToast('❌ 复制失败', 'error');
-        } catch (err) {
-          showToast('❌ 复制失败', 'error');
-        }
-        document.body.removeChild(textArea);
-      };
-
-      // Add copy listeners to explicit buttons
-      const copyBtns = chatMessages.querySelectorAll('.btn-copy-msg');
-      copyBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          if (isBatchMode) return;
-          e.stopPropagation();
-          doCopy(btn.dataset.text, btn);
-        });
-      });
-
-      // Add copy listeners to text bubbles
-      const textBubbles = chatMessages.querySelectorAll('.text-bubble');
-      textBubbles.forEach(bubble => {
-        bubble.addEventListener('click', (e) => {
-          if (isBatchMode) return;
-          e.stopPropagation();
-          doCopy(bubble.dataset.text, null);
-        });
-      });
-      
-      // Add lightbox listeners
-      const imagePreviews = chatMessages.querySelectorAll('.image-preview');
-      imagePreviews.forEach(img => {
-        img.addEventListener('click', () => {
-          if (isBatchMode) return;
-          openLightbox(img.dataset.src, img.dataset.name);
-        });
-      });
-      
-      // Add cancel upload listeners
-      const cancelBtns = chatMessages.querySelectorAll('.btn-cancel-upload');
-      cancelBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const uploadId = btn.dataset.id;
-          const xhr = activeXhrs.get(uploadId);
-          if (xhr) xhr.abort();
-        });
-      });
-      
-      // 同步还原清空 DOM 前的滚动位置，防止浏览器默认重置为 0
-      if (!isInitialLoad) {
-        chatMessages.scrollTop = oldScrollTop;
-      }
-      
-      if (isInitialLoad) {
-        // 首次加载瞬间沉底
-        scrollToBottom(false);
-      } else if (isAtBottom) {
-        // 如果原本就在底部，有新消息时平滑滚动一小段距离
-        // 增加突变保护：如果清空搜索导致高度暴增，瞬间跳跃，防止眩晕
-        const newScrollHeight = chatMessages.scrollHeight;
-        if (Math.abs(newScrollHeight - oldScrollHeight) > chatMessages.clientHeight * 2) {
-          scrollToBottom(false);
-        } else {
-          scrollToBottom(true);
+          currentGroup = {
+            type: 'image_album',
+            id: 'album_' + msg.id,
+            clientId: msg.clientId,
+            deviceName: msg.deviceName,
+            timestamp: msg.timestamp,
+            images: [msg]
+          };
+          groupedHistory.push(currentGroup);
         }
       } else {
-        // 用户在翻看历史消息，维持当前阅读位置不变
-        chatMessages.scrollTop = oldScrollTop;
+        currentGroup = null;
+        groupedHistory.push(msg);
       }
+    });
+
+    // 2. Incremental DOM update
+    const existingNodesMap = new Map();
+    Array.from(chatMessages.children).forEach(child => {
+      if (child.dataset.groupId) {
+        existingNodesMap.set(child.dataset.groupId, child);
+      }
+    });
+
+    const newContainer = document.createDocumentFragment();
+    let domChanged = false;
+
+    groupedHistory.forEach(item => {
+      const groupId = item.id;
+      let existingNode = existingNodesMap.get(groupId);
+      let needsRender = true;
+
+      if (existingNode) {
+        if (item.type === 'image_album') {
+          if (parseInt(existingNode.dataset.imgCount) === item.images.length) {
+            needsRender = false;
+          }
+        } else if (item.type === 'upload') {
+          needsRender = true; 
+        } else {
+          needsRender = false;
+        }
+      }
+
+      if (!needsRender) {
+        newContainer.appendChild(existingNode);
+        existingNodesMap.delete(groupId);
+      } else {
+        domChanged = true;
+        const div = createMessageNode(item);
+        newContainer.appendChild(div);
+      }
+    });
+
+    if (existingNodesMap.size > 0 || domChanged) {
+      chatMessages.innerHTML = '';
+      chatMessages.appendChild(newContainer);
+      updateBatchUI(); // sync checkboxes if any
+    }
+    
+    if (isAtBottom && domChanged) {
+      setTimeout(() => chatMessages.scrollTop = chatMessages.scrollHeight, 50);
     }
   }
 
-  // --- Attachments / Upload ---
-  btnAttach.addEventListener('click', () => {
-    fileUploadInput.click();
-  });
+  function doCopy(encodedText, btnEl) {
+    const text = decodeURIComponent(encodedText);
+    const showSuccess = (el) => {
+      showToast('?? �Ѹ���', 'success');
+      if (el && el.tagName === 'BUTTON') {
+         const originalText = el.innerHTML;
+         el.innerHTML = '?? �Ѹ���';
+         setTimeout(() => el.innerHTML = originalText, 2000);
+      }
+    };
+    const fallbackCopy = (text, el) => {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        if (document.execCommand('copy')) showSuccess(el);
+        else showToast('? ����ʧ��', 'error');
+      } catch (err) {
+        showToast('? ����ʧ��', 'error');
+      }
+      document.body.removeChild(textArea);
+    };
 
-  fileUploadInput.addEventListener('change', (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+    if (navigator.clipboard && window.isSecureContext) {
+       navigator.clipboard.writeText(text).then(() => showSuccess(btnEl)).catch(() => fallbackCopy(text, btnEl));
+    } else {
+       fallbackCopy(text, btnEl);
+    }
+  }
+
+  function createMessageNode(msg) {
+    const isSelf = msg.clientId === myClientId;
+    const div = document.createElement('div');
+    div.className = `chat-message ${isSelf ? 'self' : 'other'}`;
+    div.dataset.groupId = msg.id;
+
+    const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    let metaHtml = `<span class="time">${time}</span> <span>${msg.deviceName}</span>`;
     
-    files.forEach(file => {
-      uploadFileAsMessage(file);
-    });
-    fileUploadInput.value = '';
-  });
+    if (msg.type === 'text') {
+      if (!isSelf) {
+        metaHtml += `<button class="btn-copy-msg" data-text="${encodeURIComponent(msg.content)}">复制内容</button>`;
+      }
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="msg:${msg.id}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="">${escapeHtml(msg.content)}</div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+
+      // bind events
+      const copyBtn = div.querySelector('.btn-copy-msg');
+      if (copyBtn) copyBtn.onclick = (e) => { if(!isBatchMode) { e.stopPropagation(); doCopy(copyBtn.dataset.text, copyBtn); } };
+      
+      const textBubble = div.querySelector('.text-bubble');
+      if (textBubble) textBubble.onclick = (e) => { if(!isBatchMode) { e.stopPropagation(); doCopy(textBubble.dataset.text, null); } };
+
+    } else if (msg.type === 'image_album') {
+      div.dataset.imgCount = msg.images.length;
+      let albumValue = msg.images.map(img => encodeURIComponent(img.content)).join('|');
+      let gridHtml = `<div class="nine-grid" data-count="${msg.images.length}">`;
+      msg.images.slice(0, 9).forEach((img, idx) => {
+        const thumbUrl = `/api/files/thumbnail/${encodeURIComponent(img.content)}`;
+        if (idx === 8 && msg.images.length > 9) {
+          gridHtml += `
+            <div class="img-wrapper">
+              <img src="${thumbUrl}" class="image-preview grid-img" data-src="${img.fileUrl}" data-name="${escapeHtml(img.content)}" alt="${escapeHtml(img.content)}" title="">
+              <div class="more-overlay" style="pointer-events: none;">+${msg.images.length - 9}</div>
+            </div>
+          `;
+        } else {
+          gridHtml += `<img src="${thumbUrl}" class="image-preview grid-img" data-src="${img.fileUrl}" data-name="${escapeHtml(img.content)}" alt="${escapeHtml(img.content)}" title="">`;
+        }
+      });
+      gridHtml += `</div>`;
+
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="album:${albumValue}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble file-card image-album-card" data-filename="${albumValue}">
+              ${gridHtml}
+            </div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+
+      const images = div.querySelectorAll('.image-preview, .more-overlay');
+      const albumImages = msg.images;
+      images.forEach((img, idx) => {
+        // Find closest image-preview if clicked on overlay
+        let realImg = img.classList.contains('image-preview') ? img : img.parentElement.querySelector('.image-preview');
+        if(!realImg) return;
+        img.onclick = (e) => {
+          if(isBatchMode) return;
+          e.stopPropagation();
+          // The index for overlay is also 8
+          let clickedIdx = idx > 8 ? 8 : idx;
+          if (window.openGallery) {
+             window.openGallery(albumImages, clickedIdx);
+          }
+        };
+      });
+
+    } else if (msg.type === 'file') {
+      const sizeStr = formatSize(msg.fileSize);
+      const icon = getFileIcon(msg.content);
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 0;">
+              <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px;">
+                <div class="file-icon-large">${icon}</div>
+                <div class="file-details">
+                  <span class="file-name">${escapeHtml(msg.content)}</span>
+                  <span class="file-size">${sizeStr}</span>
+                </div>
+              </a>
+            </div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+      
+      const fileCard = div.querySelector('.file-card');
+      const aLink = div.querySelector('a');
+      if (aLink) aLink.onclick = (e) => { if(isBatchMode) e.preventDefault(); };
+
+    } else if (msg.type === 'upload') {
+      const icon = getFileIcon(msg.content);
+      div.innerHTML = `
+        <div class="file-bubble">
+          <div class="file-icon-large">${icon}</div>
+          <div class="file-details">
+            <span class="file-name">${escapeHtml(msg.content)}</span>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+              <span class="file-size">${msg.fileSize}</span>
+              <span id="speed_${msg.id}" style="color: var(--primary-color);">${msg.speed || ''}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
+                 <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
+              </div>
+              <button class="btn-cancel-upload" data-id="${msg.id}" title="ȡ���ϴ�" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">?</button>
+            </div>
+          </div>
+        </div>
+        <div class="chat-meta">${metaHtml}</div>
+      `;
+      
+      const cancelBtn = div.querySelector('.btn-cancel-upload');
+      if (cancelBtn) {
+        cancelBtn.onclick = () => {
+          const id = cancelBtn.dataset.id;
+          if (activeXhrs.has(id)) {
+            activeXhrs.get(id).abort();
+            activeXhrs.delete(id);
+          }
+          uploadingFiles.delete(id);
+          fetchUnifiedMessages();
+        };
+      }
+    }
+    return div;
+  }
 
   function uploadFileAsMessage(file) {
     if (serverMaxFileSize && file.size > serverMaxFileSize) {
@@ -1262,18 +1304,72 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, "&#039;");
   }
 
-  // --- Lightbox ---
-  function openLightbox(src, filename) {
-    lightboxImg.src = src;
-    lightboxDownload.href = src;
-    lightboxDownload.download = filename;
+  // --- Lightbox Gallery ---
+  let galleryImages = [];
+  let currentGalleryIndex = 0;
+  const btnPrev = document.getElementById('lightbox-prev');
+  const btnNext = document.getElementById('lightbox-next');
+
+  window.openGallery = function(imagesArr, startIndex) {
+    galleryImages = imagesArr.map(img => ({ src: img.fileUrl, name: img.content }));
+    currentGalleryIndex = startIndex;
+    updateGalleryView();
     lightbox.classList.remove('hidden');
+  };
+
+  window.openLightbox = function(src, filename) {
+    galleryImages = [{ src, name: filename }];
+    currentGalleryIndex = 0;
+    updateGalleryView();
+    lightbox.classList.remove('hidden');
+  };
+
+  function updateGalleryView() {
+    if (galleryImages.length === 0) return;
+    const imgData = galleryImages[currentGalleryIndex];
+    lightboxImg.src = imgData.src;
+    lightboxDownload.href = imgData.src;
+    lightboxDownload.download = imgData.name;
+    
+    if (galleryImages.length > 1) {
+      if (btnPrev) btnPrev.classList.remove('hidden');
+      if (btnNext) btnNext.classList.remove('hidden');
+    } else {
+      if (btnPrev) btnPrev.classList.add('hidden');
+      if (btnNext) btnNext.classList.add('hidden');
+    }
   }
+
+  function nextGalleryImage(e) {
+    if (e) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    currentGalleryIndex = (currentGalleryIndex + 1) % galleryImages.length;
+    updateGalleryView();
+  }
+
+  function prevGalleryImage(e) {
+    if (e) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    currentGalleryIndex = (currentGalleryIndex - 1 + galleryImages.length) % galleryImages.length;
+    updateGalleryView();
+  }
+
+  if (btnNext) btnNext.addEventListener('click', nextGalleryImage);
+  if (btnPrev) btnPrev.addEventListener('click', prevGalleryImage);
+
+  document.addEventListener('keydown', (e) => {
+    if (!lightbox.classList.contains('hidden')) {
+      if (e.key === 'ArrowRight') nextGalleryImage();
+      if (e.key === 'ArrowLeft') prevGalleryImage();
+      if (e.key === 'Escape') closeLightbox();
+    }
+  });
 
   function closeLightbox() {
     lightbox.classList.add('hidden');
     setTimeout(() => {
       lightboxImg.src = '';
+      galleryImages = [];
     }, 300); // clear after animation
   }
 
@@ -1490,6 +1586,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const itemsArray = Array.from(selectedFiles);
       const filesToDelete = itemsArray.filter(item => item.startsWith('file:')).map(item => item.substring(5));
       const msgsToDelete = itemsArray.filter(item => item.startsWith('msg:')).map(item => item.substring(4));
+      
+      const albumsToDelete = itemsArray.filter(item => item.startsWith('album:')).map(item => item.substring(6));
+      albumsToDelete.forEach(albumStr => {
+        albumStr.split('|').forEach(file => filesToDelete.push(file));
+      });
 
       try {
         const promises = [];

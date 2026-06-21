@@ -4,6 +4,22 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../../config');
 
+jest.mock('jimp', () => {
+  return {
+    Jimp: {
+      read: jest.fn().mockResolvedValue({
+        resize: jest.fn().mockReturnThis(),
+        write: jest.fn().mockImplementation(async (path) => {
+          // Simulate jimp writing to our mocked memory fs
+          const fs = require('fs');
+          fs.writeFileSync(path, 'fake-thumbnail-data');
+          return this;
+        })
+      })
+    }
+  };
+});
+
 // === Memory FS Mock ===
 let mockMemoryFs = {};
 
@@ -54,6 +70,12 @@ jest.mock('fs', () => {
     }),
     writeFileSync: jest.fn((p, data) => {
       mockMemoryFs[p] = { type: 'file', content: Buffer.from(data) };
+    }),
+    readFileSync: jest.fn((p) => {
+      if (!mockMemoryFs[p] || mockMemoryFs[p].type !== 'file') {
+        throw new Error('ENOENT');
+      }
+      return mockMemoryFs[p].content;
     }),
     createReadStream: jest.fn((p) => {
       if (!mockMemoryFs[p] || mockMemoryFs[p].type !== 'file') {
@@ -149,6 +171,34 @@ describe('Files API Routes (Mocked FS)', () => {
     const response = await request(app).get('/api/files/download/download_test.txt');
     expect(response.status).toBe(200);
     expect(response.text).toBe('download content');
+  });
+
+  it('GET /api/files/thumbnail/:filename 应该返回非图片的原文件并重定向', async () => {
+    mockMemoryFs[path.join(config.shareDir, 'test_thumb.txt')] = {
+      type: 'file',
+      content: Buffer.from('hello world')
+    };
+    const res = await request(app).get('/api/files/thumbnail/test_thumb.txt');
+    expect(res.status).toBe(302); // Redirects to download
+  });
+
+  it('GET /api/files/thumbnail/:filename 应该为图片生成缩略图并返回', async () => {
+    const filename = 'test_thumb.jpg';
+    mockMemoryFs[path.join(config.shareDir, filename)] = {
+      type: 'file',
+      content: Buffer.from('fake-image-content')
+    };
+    
+    // First request should trigger generation
+    const res1 = await request(app).get(`/api/files/thumbnail/${filename}`);
+    expect(res1.status).toBe(200);
+    expect(res1.body.toString()).toBe('fake-thumbnail-data');
+    expect(res1.headers['content-type']).toBe('image/jpeg');
+
+    // Second request should serve from cache
+    const res2 = await request(app).get(`/api/files/thumbnail/${filename}`);
+    expect(res2.status).toBe(200);
+    expect(res2.body.toString()).toBe('fake-thumbnail-data');
   });
 
   test('DELETE /api/files/:filename 应该能成功删除文件', async () => {

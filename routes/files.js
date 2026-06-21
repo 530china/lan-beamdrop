@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const { Jimp } = require('jimp');
 const config = require('../config');
 const { broadcastUpdate } = require('../utils/websocket');
 
@@ -11,6 +12,12 @@ const router = express.Router();
 if (!fs.existsSync(config.shareDir)) {
   fs.mkdirSync(config.shareDir, { recursive: true });
   console.log(`[文件] 共享目录已创建: ${config.shareDir}`);
+}
+
+const thumbnailsDir = path.join(config.shareDir, '.thumbnails');
+if (!fs.existsSync(thumbnailsDir)) {
+  fs.mkdirSync(thumbnailsDir, { recursive: true });
+  console.log(`[文件] 缩略图缓存目录已创建: ${thumbnailsDir}`);
 }
 
 // 配置 multer 文件上传
@@ -95,6 +102,60 @@ router.get('/', (req, res) => {
   } catch (err) {
     console.error('[文件] 读取目录失败:', err.message);
     res.status(500).json({ success: false, error: '读取文件列表失败' });
+  }
+});
+
+/**
+ * GET /api/files/thumbnail/:filename
+ * 获取图片的缩略图（按需生成并缓存）
+ */
+router.get('/thumbnail/:filename', async (req, res) => {
+  try {
+    const filename = decodeURIComponent(req.params.filename);
+    const filePath = path.join(config.shareDir, filename);
+
+    // 安全检查
+    const resolvedPath = path.resolve(filePath);
+    if (!resolvedPath.startsWith(path.resolve(config.shareDir))) {
+      return res.status(403).json({ success: false, error: '非法路径' });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: '文件不存在' });
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    const isImage = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'].includes(ext);
+
+    // 如果不是支持的图片，直接重定向到原文件下载
+    if (!isImage) {
+      return res.redirect(`/api/files/download/${encodeURIComponent(filename)}`);
+    }
+
+    const thumbPath = path.join(thumbnailsDir, filename);
+    
+    // 如果缓存缩略图不存在，则生成
+    if (!fs.existsSync(thumbPath)) {
+      try {
+        const image = await Jimp.read(fs.readFileSync(filePath));
+        await image.resize({ w: 300 }).write(thumbPath);
+      } catch (err) {
+        console.error(`[缩略图] 生成失败 (${filename}):`, err.message);
+        // 如果生成失败，降级返回原图
+        return res.redirect(`/api/files/download/${encodeURIComponent(filename)}`);
+      }
+    }
+
+    const stat = fs.statSync(thumbPath);
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Content-Type', 'image/jpeg'); // Jimp 默认输出格式之一，或者根据扩展名推断
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // 浏览器缓存一天
+
+    const readStream = fs.createReadStream(thumbPath);
+    readStream.pipe(res);
+  } catch (err) {
+    console.error('[缩略图] 请求异常:', err.message);
+    res.status(500).json({ success: false, error: '获取缩略图失败' });
   }
 });
 
