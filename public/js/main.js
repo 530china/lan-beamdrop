@@ -1,5 +1,5 @@
 import { formatBytes, escapeHtml, showToast } from './utils.js';
-import { apiConfig, fetchFiles, fetchClipboard, deleteFile } from './api.js';
+import { apiConfig, fetchFiles, fetchClipboard, deleteFile, uploadFileChunked } from './api.js';
 import { renderChatHistory, doCopy } from './ui.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -861,42 +861,40 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadingFiles.set(uploadId, upObj);
     fetchUnifiedMessages().then(() => scrollToBottom(true));
     
-    const formData = new FormData();
-    formData.append('files', file);
-
-    const xhr = new XMLHttpRequest();
-    activeXhrs.set(uploadId, xhr);
-    xhr.open('POST', '/api/files/upload', true);
-
     let lastLoaded = 0;
     let lastTime = Date.now();
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const p = Math.round((e.loaded / e.total) * 100);
-        upObj.progress = p;
-        
-        const now = Date.now();
-        const diffTime = now - lastTime;
-        if (diffTime >= 500 || e.loaded === e.total) {
-          const diffLoaded = e.loaded - lastLoaded;
-          const speedBps = (diffLoaded / diffTime) * 1000;
-          upObj.speed = formatBytes(speedBps) + '/s';
-          lastLoaded = e.loaded;
-          lastTime = now;
-        }
-
-        const bar = document.getElementById(`prog_${uploadId}`);
-        if(bar) bar.style.width = p + '%';
-        
-        const speedEl = document.getElementById(`speed_${uploadId}`);
-        if(speedEl) speedEl.textContent = upObj.speed;
+    const onProgress = (loaded, total) => {
+      const p = Math.round((loaded / total) * 100);
+      upObj.progress = p;
+      
+      const now = Date.now();
+      const diffTime = now - lastTime;
+      if (diffTime >= 500 || loaded === total) {
+        const diffLoaded = loaded - lastLoaded;
+        const speedBps = (diffLoaded / diffTime) * 1000;
+        upObj.speed = formatBytes(speedBps) + '/s';
+        lastLoaded = loaded;
+        lastTime = now;
       }
+
+      const bar = document.getElementById(`prog_${uploadId}`);
+      if(bar) bar.style.width = p + '%';
+      
+      const speedEl = document.getElementById(`speed_${uploadId}`);
+      if(speedEl) speedEl.textContent = upObj.speed;
     };
 
-    xhr.onload = () => {
-      activeXhrs.delete(uploadId);
-      if (xhr.status === 200) {
+    let abortUpload = () => {};
+    const onAbort = (abortFn) => {
+      abortUpload = abortFn;
+    };
+
+    activeXhrs.set(uploadId, { abort: () => abortUpload() });
+
+    uploadFileChunked(file, onProgress, onAbort)
+      .then(() => {
+        activeXhrs.delete(uploadId);
         upObj.progress = 100;
         const bar = document.getElementById(`prog_${uploadId}`);
         if(bar) bar.style.width = '100%';
@@ -904,39 +902,22 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`发送成功: ${file.name}`, 'success');
         addLog(`发送文件: ${file.name}`);
         
-        // Keep the progress bar visible for 1 second before converting to a file bubble
         setTimeout(() => {
           uploadingFiles.delete(uploadId);
           fetchUnifiedMessages();
         }, 1000);
-      } else {
+      })
+      .catch((err) => {
+        activeXhrs.delete(uploadId);
         uploadingFiles.delete(uploadId);
-        let errorMsg = `发送失败: ${file.name}`;
-        try {
-          const res = JSON.parse(xhr.responseText);
-          if (res.error) errorMsg = `失败: ${res.error}`;
-        } catch (e) { /* ignore */ }
-        showToast(errorMsg, 'error');
+        if (err.name === 'AbortError' || err.message === 'AbortError') {
+          showToast(`已取消上传: ${file.name}`, 'info');
+          addLog(`取消发送: ${file.name}`);
+        } else {
+          showToast(`发送失败: ${err.message || file.name}`, 'error');
+        }
         fetchUnifiedMessages();
-      }
-    };
-
-    xhr.onerror = () => {
-      activeXhrs.delete(uploadId);
-      uploadingFiles.delete(uploadId);
-      showToast(`发送出错: ${file.name}`, 'error');
-      fetchUnifiedMessages();
-    };
-
-    xhr.onabort = () => {
-      activeXhrs.delete(uploadId);
-      uploadingFiles.delete(uploadId);
-      showToast(`已取消上传: ${file.name}`, 'info');
-      addLog(`取消发送: ${file.name}`);
-      fetchUnifiedMessages();
-    };
-
-    xhr.send(formData);
+      });
   }
 
   btnSendClipboard.addEventListener('click', async () => {
