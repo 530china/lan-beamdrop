@@ -7,6 +7,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAttach = document.getElementById('btn-attach');
   const fileUploadInput = document.getElementById('file-upload-input');
   const chatMessages = document.getElementById('chat-messages');
+
+  // FAB Menu & Batch Mode Elements
+  const fabContainer = document.getElementById('fab-container');
+  const fabMain = document.getElementById('fab-main');
+  const fabMenu = document.getElementById('fab-menu');
+  const fabMenuBatch = document.getElementById('fab-menu-batch');
+  const fabMenuSpeedtest = document.getElementById('fab-menu-speedtest');
+  
+  const batchActionBar = document.getElementById('batch-action-bar');
+  const batchSelectedCount = document.getElementById('batch-selected-count');
+  const btnBatchDelete = document.getElementById('btn-batch-delete');
+  const btnBatchCancel = document.getElementById('btn-batch-cancel');
+
+  let isBatchMode = false;
+  let selectedFiles = new Set();
   
   const activityLog = document.getElementById('activity-log');
   const logToggle = document.getElementById('log-toggle');
@@ -813,29 +828,54 @@ document.addEventListener('DOMContentLoaded', () => {
           metaHtml += `<button class="btn-copy-msg" data-text="${encodeURIComponent(msg.content)}">📋 复制</button>`;
         }
         div.innerHTML = `
-          <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="点击复制">${escapeHtml(msg.content)}</div>
-          <div class="chat-meta">${metaHtml}</div>
+          <div class="message-row">
+            <div class="batch-checkbox-wrapper">
+              <input type="checkbox" class="batch-checkbox" value="msg:${msg.id}">
+            </div>
+            <div class="message-content">
+              <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="点击复制">
+                ${escapeHtml(msg.content)}
+              </div>
+              <div class="chat-meta">${metaHtml}</div>
+            </div>
+          </div>
         `;
       } else if (msg.type === 'file') {
         const sizeStr = formatSize(msg.fileSize);
         if (isImage(msg.content)) {
           div.innerHTML = `
-            <div class="chat-bubble" style="padding: 4px; background: transparent; box-shadow: none;">
-              <img src="${msg.fileUrl}" class="image-preview" data-src="${msg.fileUrl}" data-name="${escapeHtml(msg.content)}" alt="${escapeHtml(msg.content)}" title="点击查看原图">
+            <div class="message-row">
+              <div class="batch-checkbox-wrapper">
+                <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
+              </div>
+              <div class="message-content">
+                <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 4px; background: transparent; box-shadow: none;">
+                  <img src="${msg.fileUrl}" class="image-preview" data-src="${msg.fileUrl}" data-name="${escapeHtml(msg.content)}" alt="${escapeHtml(msg.content)}" title="点击查看原图">
+                </div>
+                <div class="chat-meta">${metaHtml}</div>
+              </div>
             </div>
-            <div class="chat-meta">${metaHtml}</div>
           `;
         } else {
           const icon = getFileIcon(msg.content);
           div.innerHTML = `
-            <a href="${msg.fileUrl}" class="file-bubble" download>
-              <div class="file-icon-large">${icon}</div>
-              <div class="file-details">
-                <span class="file-name">${escapeHtml(msg.content)}</span>
-                <span class="file-size">${sizeStr}</span>
+            <div class="message-row">
+              <div class="batch-checkbox-wrapper">
+                <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
               </div>
-            </a>
-            <div class="chat-meta">${metaHtml}</div>
+              <div class="message-content">
+                <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 0;">
+                  <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px;">
+                    <div class="file-icon-large">${icon}</div>
+                    <div class="file-details">
+                      <span class="file-name">${escapeHtml(msg.content)}</span>
+                      <span class="file-size">${sizeStr}</span>
+                    </div>
+                  </a>
+                </div>
+                <div class="chat-meta">${metaHtml}</div>
+              </div>
+            </div>
           `;
         }
       } else if (msg.type === 'upload') {
@@ -905,6 +945,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const copyBtns = chatMessages.querySelectorAll('.btn-copy-msg');
       copyBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
+          if (isBatchMode) return;
           e.stopPropagation();
           doCopy(btn.dataset.text, btn);
         });
@@ -914,6 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const textBubbles = chatMessages.querySelectorAll('.text-bubble');
       textBubbles.forEach(bubble => {
         bubble.addEventListener('click', (e) => {
+          if (isBatchMode) return;
           e.stopPropagation();
           doCopy(bubble.dataset.text, null);
         });
@@ -923,6 +965,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const imagePreviews = chatMessages.querySelectorAll('.image-preview');
       imagePreviews.forEach(img => {
         img.addEventListener('click', () => {
+          if (isBatchMode) return;
           openLightbox(img.dataset.src, img.dataset.name);
         });
       });
@@ -1269,13 +1312,11 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => toast.remove(), 300);
     }, 3000);
   }
-});
 
 // ============================================
 // 局域网测速 (Speed Test) 逻辑
 // ============================================
-(function initSpeedTest() {
-  const btnSpeedtest = document.getElementById('btn-speedtest');
+
   const speedtestModal = document.getElementById('speedtest-modal');
   const btnCloseSpeedtest = document.getElementById('btn-close-speedtest');
   const btnStartSpeedtest = document.getElementById('btn-start-speedtest');
@@ -1283,11 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const speedUpload = document.getElementById('speed-upload');
   const speedtestConclusion = document.getElementById('speedtest-conclusion');
 
-  if (btnSpeedtest) {
-    btnSpeedtest.addEventListener('click', () => {
-      speedtestModal.classList.remove('hidden');
-    });
-  }
+
 
   if (btnCloseSpeedtest) {
     btnCloseSpeedtest.addEventListener('click', () => {
@@ -1361,6 +1398,207 @@ document.addEventListener('DOMContentLoaded', () => {
     return (bytesSent / 1024 / 1024) / finalElapsed;
   }
 
+  // ==========================================
+  // Batch Management Logic
+  // ==========================================
+  
+  function updateBatchUI() {
+    if (isBatchMode) {
+      document.body.classList.add('batch-mode');
+      if (fabContainer) fabContainer.classList.add('hidden');
+      if (batchActionBar) batchActionBar.classList.remove('hidden');
+      if (batchSelectedCount) batchSelectedCount.textContent = `已选 ${selectedFiles.size} 项`;
+    } else {
+      document.body.classList.remove('batch-mode');
+      if (fabContainer) fabContainer.classList.remove('hidden');
+      if (batchActionBar) batchActionBar.classList.add('hidden');
+      selectedFiles.clear();
+      document.querySelectorAll('.batch-checkbox').forEach(cb => cb.checked = false);
+    }
+  }
+
+  function enterBatchMode(initialFilename = null) {
+    if (isBatchMode) return;
+    isBatchMode = true;
+    selectedFiles.clear();
+    if (initialFilename) {
+      selectedFiles.add(initialFilename);
+    }
+    updateBatchUI();
+
+    fetchUnifiedMessages(); // trigger re-render
+  }
+
+  function exitBatchMode() {
+    isBatchMode = false;
+    updateBatchUI();
+    fetchUnifiedMessages();
+  }
+
+  // FAB Menu Logic
+  if (fabMain) {
+    fabMain.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = fabMain.classList.contains('active');
+      if (isExpanded) {
+        fabMain.classList.remove('active');
+        fabMenu.classList.add('hidden');
+      } else {
+        fabMain.classList.add('active');
+        fabMenu.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Hide FAB menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (fabContainer && !fabContainer.contains(e.target)) {
+      fabMain.classList.remove('active');
+      fabMenu.classList.add('hidden');
+    }
+  });
+
+  if (fabMenuBatch) {
+    fabMenuBatch.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fabMain.classList.remove('active');
+      fabMenu.classList.add('hidden');
+      enterBatchMode();
+    });
+  }
+
+  if (fabMenuSpeedtest) {
+    fabMenuSpeedtest.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fabMain.classList.remove('active');
+      fabMenu.classList.add('hidden');
+      
+      const modal = document.getElementById('speedtest-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+    });
+  }
+
+  if (btnBatchCancel) btnBatchCancel.addEventListener('click', () => exitBatchMode());
+
+  if (btnBatchDelete) {
+    btnBatchDelete.addEventListener('click', async () => {
+      if (selectedFiles.size === 0) return;
+      if (!confirm(`确定要删除选中的 ${selectedFiles.size} 项吗？`)) return;
+
+      const itemsArray = Array.from(selectedFiles);
+      const filesToDelete = itemsArray.filter(item => item.startsWith('file:')).map(item => item.substring(5));
+      const msgsToDelete = itemsArray.filter(item => item.startsWith('msg:')).map(item => item.substring(4));
+
+      try {
+        const promises = [];
+        if (filesToDelete.length > 0) {
+          promises.push(fetch('/api/files/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files: filesToDelete })
+          }).then(res => res.json()));
+        }
+
+        if (msgsToDelete.length > 0) {
+          promises.push(fetch('/api/clipboard/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: msgsToDelete })
+          }).then(res => res.json()));
+        }
+
+        const results = await Promise.all(promises);
+        
+        let allSuccess = true;
+        for (const data of results) {
+          if (!data.success) {
+            allSuccess = false;
+            showToast(data.error || '部分删除失败', 'error');
+          }
+        }
+
+        if (allSuccess) {
+          showToast('删除成功', 'success');
+          exitBatchMode();
+        } else {
+          exitBatchMode();
+        }
+      } catch (err) {
+        showToast('删除请求失败', 'error');
+      }
+    });
+  }
+
+  let pressTimer;
+  let isDragging = false;
+
+  chatMessages.addEventListener('mousedown', handlePressStart);
+  chatMessages.addEventListener('touchstart', handlePressStart, { passive: true });
+
+  chatMessages.addEventListener('mouseup', handlePressEnd);
+  chatMessages.addEventListener('mouseleave', handlePressEnd);
+  chatMessages.addEventListener('touchend', handlePressEnd);
+  chatMessages.addEventListener('touchcancel', handlePressEnd);
+
+  chatMessages.addEventListener('mousemove', () => isDragging = true);
+  chatMessages.addEventListener('touchmove', () => isDragging = true, { passive: true });
+
+  function handlePressStart(e) {
+    const messageRow = e.target.closest('.message-row');
+    if (!messageRow) return;
+    
+    isDragging = false;
+    let initialItemId = null;
+    
+    const cb = messageRow.querySelector('.batch-checkbox');
+    if (cb) {
+      initialItemId = cb.value;
+    }
+    
+    pressTimer = window.setTimeout(() => {
+      if (!isDragging && !isBatchMode && initialItemId) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        enterBatchMode(initialItemId);
+      }
+    }, 500); // 500ms 长按触发
+  }
+
+  function handlePressEnd() {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }
+
+  // 代理复选框和卡片点击事件
+  chatMessages.addEventListener('click', (e) => {
+    if (!isBatchMode) return;
+
+    const messageRow = e.target.closest('.message-row');
+    if (messageRow) {
+      const cb = messageRow.querySelector('.batch-checkbox');
+      if (cb) {
+        // Only prevent default if we didn't click the checkbox directly
+        // This allows native checkbox toggling and prevents double-toggling
+        if (e.target !== cb && !cb.contains(e.target)) {
+          e.preventDefault();
+          e.stopPropagation();
+          cb.checked = !cb.checked;
+        }
+        
+        const idVal = cb.value;
+        if (cb.checked) {
+          selectedFiles.add(idVal);
+        } else {
+          selectedFiles.delete(idVal);
+        }
+        updateBatchUI();
+      }
+    }
+  });
+
   if (btnStartSpeedtest) {
     btnStartSpeedtest.addEventListener('click', async () => {
       btnStartSpeedtest.disabled = true;
@@ -1404,4 +1642,4 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-})();
+});

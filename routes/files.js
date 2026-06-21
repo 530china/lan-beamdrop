@@ -229,6 +229,61 @@ router.post('/upload', (req, res, next) => {
 });
 
 /**
+ * POST /api/files/batch-delete
+ * 批量删除文件
+ */
+router.post('/batch-delete', (req, res) => {
+  try {
+    const files = req.body.files;
+    if (!Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ success: false, error: '未提供有效的文件列表' });
+    }
+
+    const deletedFiles = [];
+    const failedFiles = [];
+
+    files.forEach(rawFilename => {
+      // 防止路径穿越
+      const filename = path.basename(decodeURIComponent(rawFilename));
+      const filePath = path.join(config.shareDir, filename);
+
+      const resolvedPath = path.resolve(filePath);
+      if (!resolvedPath.startsWith(path.resolve(config.shareDir))) {
+        failedFiles.push({ filename, reason: '非法路径' });
+        return;
+      }
+
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+          deletedFiles.push(filename);
+          console.log(`[文件] 批量删除成功: ${filename}`);
+        } catch (err) {
+          failedFiles.push({ filename, reason: err.message });
+          console.error(`[文件] 批量删除失败: ${filename}`, err.message);
+        }
+      } else {
+        failedFiles.push({ filename, reason: '文件不存在' });
+      }
+    });
+
+    if (deletedFiles.length > 0) {
+      broadcastUpdate('DELETE_FILE');
+    }
+
+    res.json({
+      success: true,
+      message: `成功删除 ${deletedFiles.length} 个文件`,
+      deletedFiles,
+      failedFiles
+    });
+  } catch (err) {
+    console.error('[文件] 批量删除总异常:', err.message);
+    res.status(500).json({ success: false, error: '批量删除失败' });
+  }
+});
+
+/**
  * DELETE /api/files/:filename
  * 删除指定文件
  */
