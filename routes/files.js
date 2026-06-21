@@ -529,18 +529,20 @@ router.delete('/:filename', (req, res) => {
  */
 router.post('/chunk', chunkUpload.single('chunk'), (req, res) => {
   try {
-    const { fileId, index, totalChunks, filename } = req.body;
+    let { fileId, index, totalChunks, filename } = req.body;
     if (!req.file || !fileId || index === undefined || !totalChunks || !filename) {
       if (req.file) fs.unlinkSync(req.file.path);
       return res.status(400).json({ success: false, error: '参数不完整' });
     }
 
+    fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
+    index = path.basename(index.toString()).replace(/[<>:"\/\\|?*]/g, '_');
     const chunkDir = path.join(chunkUploadDir, fileId);
     if (!fs.existsSync(chunkDir)) {
       fs.mkdirSync(chunkDir, { recursive: true });
     }
 
-    const chunkPath = path.join(chunkDir, index.toString());
+    const chunkPath = path.join(chunkDir, index);
     fs.renameSync(req.file.path, chunkPath);
 
     res.json({ success: true, message: `分片 ${index} 接收成功` });
@@ -556,11 +558,12 @@ router.post('/chunk', chunkUpload.single('chunk'), (req, res) => {
  */
 router.post('/merge', async (req, res) => {
   try {
-    const { fileId, filename, totalChunks } = req.body;
+    let { fileId, filename, totalChunks } = req.body;
     if (!fileId || !filename || !totalChunks) {
       return res.status(400).json({ success: false, error: '参数不完整' });
     }
 
+    fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
     const chunkDir = path.join(chunkUploadDir, fileId);
     if (!fs.existsSync(chunkDir)) {
       return res.status(400).json({ success: false, error: '切片目录不存在' });
