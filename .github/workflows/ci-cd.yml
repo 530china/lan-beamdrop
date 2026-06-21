@@ -71,7 +71,7 @@ jobs:
           # 去除可能误填的 v 前缀
           VERSION=${VERSION#v}
           echo "TARGET_VERSION=$VERSION" >> $GITHUB_ENV
-          npm version $VERSION --no-git-tag-version
+          npm version $VERSION --allow-same-version --no-git-tag-version || true
           echo "Injected version: $VERSION"
 
       - name: Build executables with pkg
