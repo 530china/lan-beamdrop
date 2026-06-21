@@ -21,6 +21,14 @@ if (!fs.existsSync(thumbnailsDir)) {
   console.log(`[文件] 缩略图缓存目录已创建: ${thumbnailsDir}`);
 }
 
+const chunkUploadDir = path.join(config.shareDir, '.chunks');
+if (!fs.existsSync(chunkUploadDir)) {
+  fs.mkdirSync(chunkUploadDir, { recursive: true });
+  console.log(`[文件] 切片缓存目录已创建: ${chunkUploadDir}`);
+}
+const chunkUpload = multer({ dest: chunkUploadDir });
+
+
 // 配置 multer 文件上传
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -512,6 +520,118 @@ router.delete('/:filename', (req, res) => {
   } catch (err) {
     console.error('[文件] 删除失败:', err.message);
     res.status(500).json({ success: false, error: '删除失败' });
+  }
+});
+
+/**
+ * POST /api/files/chunk
+ * 接收文件的一个分片
+ */
+router.post('/chunk', chunkUpload.single('chunk'), (req, res) => {
+  try {
+    const { fileId, index, totalChunks, filename } = req.body;
+    if (!req.file || !fileId || index === undefined || !totalChunks || !filename) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ success: false, error: '参数不完整' });
+    }
+
+    const chunkDir = path.join(chunkUploadDir, fileId);
+    if (!fs.existsSync(chunkDir)) {
+      fs.mkdirSync(chunkDir, { recursive: true });
+    }
+
+    const chunkPath = path.join(chunkDir, index.toString());
+    fs.renameSync(req.file.path, chunkPath);
+
+    res.json({ success: true, message: `分片 ${index} 接收成功` });
+  } catch (err) {
+    console.error('[文件] 切片上传失败:', err.message);
+    res.status(500).json({ success: false, error: '切片上传失败' });
+  }
+});
+
+/**
+ * POST /api/files/merge
+ * 所有分片上传完毕后，合并分片成最终的大文件
+ */
+router.post('/merge', async (req, res) => {
+  try {
+    const { fileId, filename, totalChunks } = req.body;
+    if (!fileId || !filename || !totalChunks) {
+      return res.status(400).json({ success: false, error: '参数不完整' });
+    }
+
+    const chunkDir = path.join(chunkUploadDir, fileId);
+    if (!fs.existsSync(chunkDir)) {
+      return res.status(400).json({ success: false, error: '切片目录不存在' });
+    }
+    
+    // 安全检查，防路径穿越
+    let safeFilename = path.basename(decodeURIComponent(filename));
+    safeFilename = safeFilename.replace(/[<>:"\/\\|?*]/g, '_');
+    
+    // 检查是否有同名文件，添加时间戳
+    let finalPath = path.join(config.shareDir, safeFilename);
+    if (fs.existsSync(finalPath)) {
+      const ext = path.extname(safeFilename);
+      const base = path.basename(safeFilename, ext);
+      const timestamp = Date.now();
+      safeFilename = `${base}_${timestamp}${ext}`;
+      finalPath = path.join(config.shareDir, safeFilename);
+    }
+
+    const writeStream = fs.createWriteStream(finalPath);
+    
+    try {
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkPath = path.join(chunkDir, i.toString());
+        if (!fs.existsSync(chunkPath)) {
+          throw new Error(`分片 ${i} 丢失`);
+        }
+        
+        await new Promise((resolve, reject) => {
+          const readStream = fs.createReadStream(chunkPath);
+          readStream.pipe(writeStream, { end: false });
+          readStream.on('end', resolve);
+          readStream.on('error', reject);
+        });
+      }
+      
+      await new Promise((resolve, reject) => {
+        writeStream.end(resolve);
+        writeStream.on('error', reject);
+      });
+
+      // 合并成功后，清理遗留的切片目录
+      fs.rmSync(chunkDir, { recursive: true, force: true });
+
+      let mtime = new Date().toISOString();
+      let size = 0;
+      try {
+        const stats = fs.statSync(finalPath);
+        mtime = stats.mtime.toISOString();
+        size = stats.size;
+      } catch (e) {}
+
+      broadcastUpdate('FILE_ADDED', {
+        files: [{
+          name: safeFilename,
+          size: size,
+          path: finalPath,
+          mtime: mtime
+        }]
+      });
+
+      res.json({ success: true, message: '文件合并成功', file: safeFilename });
+    } catch (mergeErr) {
+      writeStream.end();
+      if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+      return res.status(400).json({ success: false, error: mergeErr.message });
+    }
+
+  } catch (err) {
+    console.error('[文件] 合并请求失败:', err.message);
+    res.status(500).json({ success: false, error: '合并请求失败' });
   }
 });
 
