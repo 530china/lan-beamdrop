@@ -81,4 +81,23 @@ router.delete('/', (req, res) => {
   }
 });
 
+/**
+ * POST /api/clipboard/batch-delete
+ * 批量删除特定的共享剪切板历史记录
+ */
+router.post('/batch-delete', (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: '无效的 ID 列表' });
+    }
+    clipboard.deleteMessages(ids);
+    broadcastUpdate('DELETE_CLIPBOARD');
+    res.json({ success: true, message: `已成功删除 ${ids.length} 条消息记录` });
+  } catch (err) {
+    console.error('[剪切板] 批量删除记录失败:', err.message);
+    res.status(500).json({ success: false, error: '批量删除记录失败' });
+  }
+});
+
 module.exports = router;

@@ -322,6 +322,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 16px;
@@ -416,7 +417,7 @@ body {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 16px 100px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -815,6 +816,116 @@ body {
   transform: scale(1.02);
 }
 
+/* --- 相册 Header --- */
+.album-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+.album-title {
+  font-size: 0.85rem;
+  color: #d1d5db;
+  font-weight: 500;
+}
+.btn-download-album {
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-download-album:hover {
+  background: rgba(99, 102, 241, 0.4);
+  color: #fff;
+}
+
+/* --- 九宫格图集 --- */
+.nine-grid {
+  display: grid;
+  gap: 4px;
+  max-width: 260px; /* 限制最大宽度，适配手机屏幕和3x3展示 */
+}
+
+/* 1张图：单图展示 */
+.nine-grid[data-count="1"] {
+  grid-template-columns: 1fr;
+}
+
+/* 2-4张图：两列排布 */
+.nine-grid[data-count="2"],
+.nine-grid[data-count="3"],
+.nine-grid[data-count="4"] {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* 5张及以上：三列排布 */
+.nine-grid[data-count="5"],
+.nine-grid[data-count="6"],
+.nine-grid[data-count="7"],
+.nine-grid[data-count="8"],
+.nine-grid[data-count="9"],
+.nine-grid:not([data-count="1"]):not([data-count="2"]):not([data-count="3"]):not([data-count="4"]) {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.nine-grid .grid-img {
+  width: 100%;
+  aspect-ratio: 1 / 1; /* 强制正方形 */
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  background: rgba(0,0,0,0.2);
+}
+
+.nine-grid .grid-img:hover {
+  filter: brightness(1.1);
+}
+
+/* 单图时取消强制正方形，恢复自适应高度 */
+.nine-grid[data-count="1"] .grid-img {
+  aspect-ratio: auto;
+  max-height: 250px;
+  border-radius: 8px;
+}
+
+.nine-grid .img-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.more-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: zoom-in;
+  pointer-events: none;
+}
+
+.image-album-card {
+  padding: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+
 .lightbox {
   position: fixed;
   top: 0;
@@ -898,6 +1009,44 @@ body {
 
 .lightbox-btn.btn-close:hover {
   background: rgba(239, 68, 68, 0.4);
+}
+
+.lightbox-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: white;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  z-index: 2002;
+  opacity: 0.7;
+}
+
+.lightbox-nav-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  opacity: 1;
+}
+
+#lightbox-prev {
+  left: 16px;
+}
+
+#lightbox-next {
+  right: 16px;
+}
+
+/* 适配移动端窄屏幕 */
+@media (max-width: 768px) {
+  #lightbox-prev { left: 8px; }
+  #lightbox-next { right: 8px; }
 }
 
 /* Settings Modal */
@@ -1334,3 +1483,182 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* --- 批量操作模式样式 --- */
+body.batch-mode .fab-main,
+body.batch-mode .fab-menu {
+  display: none !important;
+}
+
+/* --- 批量操作底部栏 --- */
+.batch-action-bar {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--surface-1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.batch-status {
+  font-size: 14px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.batch-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.batch-actions button {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.batch-actions .btn-danger {
+  background: #ff4757;
+  color: white;
+}
+
+.batch-actions .btn-danger:hover {
+  background: #ff6b81;
+}
+
+.batch-actions .btn-secondary {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.batch-actions .btn-secondary:hover {
+  background: var(--surface-3);
+}
+
+body.batch-mode .batch-action-bar {
+  transform: translateX(-50%) translateY(0);
+}
+
+.message-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  transition: transform 0.3s ease;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-message.self .message-content {
+  align-items: flex-end;
+}
+
+.chat-message.other .message-content {
+  align-items: flex-start;
+}
+
+.batch-checkbox-wrapper {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: width 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+}
+
+body.batch-mode .batch-checkbox-wrapper {
+  width: 32px;
+  opacity: 1;
+  margin-right: 12px;
+}
+
+.batch-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+/* --- FAB 悬浮球 --- */
+.fab-container {
+  position: absolute;
+  bottom: 90px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 100;
+}
+
+.fab-main {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #8b8df2, var(--accent-1));
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset -2px -2px 6px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  flex-shrink: 0;
+}
+
+.fab-main:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset -2px -2px 6px rgba(0,0,0,0.2);
+}
+
+.fab-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  transform-origin: bottom center;
+}
+
+.fab-menu.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px) scale(0.9);
+}
+
+.fab-menu-item {
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 8px 16px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.fab-menu-item:hover {
+  background: rgba(255,255,255,0.2);
+}

@@ -175,11 +175,24 @@ async function writeToPC(content) {
   }
 }
 
+/**
+ * 根据 ID 批量删除共享剪切板记录
+ */
+function deleteMessages(ids) {
+  if (!Array.isArray(ids)) return;
+  const originalLength = clipboardHistory.length;
+  clipboardHistory = clipboardHistory.filter(msg => !ids.includes(msg.id));
+  if (clipboardHistory.length < originalLength) {
+    saveHistory();
+  }
+}
+
 module.exports = {
   getHistory,
   setSharedClipboard,
   syncFromPC,
   writeToPC,
   clearHistory,
+  deleteMessages,
   startClipboardMonitor,
 };

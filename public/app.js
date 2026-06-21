@@ -7,6 +7,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAttach = document.getElementById('btn-attach');
   const fileUploadInput = document.getElementById('file-upload-input');
   const chatMessages = document.getElementById('chat-messages');
+
+  // FAB Menu & Batch Mode Elements
+  const fabContainer = document.getElementById('fab-container');
+  const fabMain = document.getElementById('fab-main');
+  const fabMenu = document.getElementById('fab-menu');
+  const fabMenuBatch = document.getElementById('fab-menu-batch');
+  const fabMenuSpeedtest = document.getElementById('fab-menu-speedtest');
+  
+  const batchActionBar = document.getElementById('batch-action-bar');
+  const batchSelectedCount = document.getElementById('batch-selected-count');
+  const btnBatchDelete = document.getElementById('btn-batch-delete');
+  const btnBatchDownload = document.getElementById('btn-batch-download');
+  const btnBatchCancel = document.getElementById('btn-batch-cancel');
+
+  let isBatchMode = false;
+  let selectedFiles = new Set();
   
   const activityLog = document.getElementById('activity-log');
   const logToggle = document.getElementById('log-toggle');
@@ -786,196 +802,271 @@ document.addEventListener('DOMContentLoaded', () => {
       forceNextScrollBottom = false;
     }
 
-    let newMessages = false;
-    const isInitialLoad = renderedMessageIds.size === 0;
-
-    // remove empty state if exists
     const empty = chatMessages.querySelector('.empty-state');
     if (empty) empty.remove();
     
-    chatMessages.innerHTML = '';
-    renderedMessageIds.clear();
-    
+    // 1. Pre-process history into groupedHistory
+    const groupedHistory = [];
+    let currentGroup = null;
+
     history.forEach(msg => {
-      newMessages = true;
-      renderedMessageIds.add(msg.id);
-      
-      const isSelf = msg.clientId === myClientId;
-      const div = document.createElement('div');
-      div.className = `chat-message ${isSelf ? 'self' : 'other'}`;
-      
-      const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      let metaHtml = `<span class="time">${time}</span> <span>${msg.deviceName}</span>`;
-      
-      if (msg.type === 'text') {
-        if (!isSelf) {
-          metaHtml += `<button class="btn-copy-msg" data-text="${encodeURIComponent(msg.content)}">📋 复制</button>`;
-        }
-        div.innerHTML = `
-          <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="点击复制">${escapeHtml(msg.content)}</div>
-          <div class="chat-meta">${metaHtml}</div>
-        `;
-      } else if (msg.type === 'file') {
-        const sizeStr = formatSize(msg.fileSize);
-        if (isImage(msg.content)) {
-          div.innerHTML = `
-            <div class="chat-bubble" style="padding: 4px; background: transparent; box-shadow: none;">
-              <img src="${msg.fileUrl}" class="image-preview" data-src="${msg.fileUrl}" data-name="${escapeHtml(msg.content)}" alt="${escapeHtml(msg.content)}" title="点击查看原图">
-            </div>
-            <div class="chat-meta">${metaHtml}</div>
-          `;
+      const isImg = msg.type === 'file' && isImage(msg.content);
+
+      if (isImg) {
+        if (currentGroup && currentGroup.type === 'image_album' && currentGroup.clientId === msg.clientId && (new Date(msg.timestamp).getTime() - new Date(currentGroup.timestamp).getTime() <= 120000)) {
+          currentGroup.images.push(msg);
         } else {
-          const icon = getFileIcon(msg.content);
-          div.innerHTML = `
-            <a href="${msg.fileUrl}" class="file-bubble" download>
-              <div class="file-icon-large">${icon}</div>
-              <div class="file-details">
-                <span class="file-name">${escapeHtml(msg.content)}</span>
-                <span class="file-size">${sizeStr}</span>
-              </div>
-            </a>
-            <div class="chat-meta">${metaHtml}</div>
-          `;
-        }
-      } else if (msg.type === 'upload') {
-        const icon = getFileIcon(msg.content);
-        div.innerHTML = `
-          <div class="file-bubble">
-            <div class="file-icon-large">${icon}</div>
-            <div class="file-details">
-              <span class="file-name">${escapeHtml(msg.content)}</span>
-              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
-                <span class="file-size">${msg.fileSize}</span>
-                <span id="speed_${msg.id}" style="color: var(--primary-color);">${msg.speed || ''}</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
-                   <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
-                </div>
-                <button class="btn-cancel-upload" data-id="${msg.id}" title="取消上传" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">✖</button>
-              </div>
-            </div>
-          </div>
-          <div class="chat-meta">${metaHtml}</div>
-        `;
-      }
-      chatMessages.appendChild(div);
-    });
-
-    if (newMessages) {
-      const doCopy = (encodedText, btnEl) => {
-        const text = decodeURIComponent(encodedText);
-        if (navigator.clipboard && window.isSecureContext) {
-           navigator.clipboard.writeText(text).then(() => showSuccess(btnEl)).catch(() => fallbackCopy(text, btnEl));
-        } else {
-           fallbackCopy(text, btnEl);
-        }
-      };
-
-      const showSuccess = (el) => {
-        showToast('✅ 已复制', 'success');
-        if (el && el.tagName === 'BUTTON') {
-           const originalText = el.innerHTML;
-           el.innerHTML = '✅ 已复制';
-           setTimeout(() => el.innerHTML = originalText, 2000);
-        }
-      };
-
-      const fallbackCopy = (text, el) => {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.position = "fixed";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) showSuccess(el);
-          else showToast('❌ 复制失败', 'error');
-        } catch (err) {
-          showToast('❌ 复制失败', 'error');
-        }
-        document.body.removeChild(textArea);
-      };
-
-      // Add copy listeners to explicit buttons
-      const copyBtns = chatMessages.querySelectorAll('.btn-copy-msg');
-      copyBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          doCopy(btn.dataset.text, btn);
-        });
-      });
-
-      // Add copy listeners to text bubbles
-      const textBubbles = chatMessages.querySelectorAll('.text-bubble');
-      textBubbles.forEach(bubble => {
-        bubble.addEventListener('click', (e) => {
-          e.stopPropagation();
-          doCopy(bubble.dataset.text, null);
-        });
-      });
-      
-      // Add lightbox listeners
-      const imagePreviews = chatMessages.querySelectorAll('.image-preview');
-      imagePreviews.forEach(img => {
-        img.addEventListener('click', () => {
-          openLightbox(img.dataset.src, img.dataset.name);
-        });
-      });
-      
-      // Add cancel upload listeners
-      const cancelBtns = chatMessages.querySelectorAll('.btn-cancel-upload');
-      cancelBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const uploadId = btn.dataset.id;
-          const xhr = activeXhrs.get(uploadId);
-          if (xhr) xhr.abort();
-        });
-      });
-      
-      // 同步还原清空 DOM 前的滚动位置，防止浏览器默认重置为 0
-      if (!isInitialLoad) {
-        chatMessages.scrollTop = oldScrollTop;
-      }
-      
-      if (isInitialLoad) {
-        // 首次加载瞬间沉底
-        scrollToBottom(false);
-      } else if (isAtBottom) {
-        // 如果原本就在底部，有新消息时平滑滚动一小段距离
-        // 增加突变保护：如果清空搜索导致高度暴增，瞬间跳跃，防止眩晕
-        const newScrollHeight = chatMessages.scrollHeight;
-        if (Math.abs(newScrollHeight - oldScrollHeight) > chatMessages.clientHeight * 2) {
-          scrollToBottom(false);
-        } else {
-          scrollToBottom(true);
+          currentGroup = {
+            type: 'image_album',
+            id: 'album_' + msg.id,
+            clientId: msg.clientId,
+            deviceName: msg.deviceName,
+            timestamp: msg.timestamp,
+            images: [msg]
+          };
+          groupedHistory.push(currentGroup);
         }
       } else {
-        // 用户在翻看历史消息，维持当前阅读位置不变
-        chatMessages.scrollTop = oldScrollTop;
+        currentGroup = null;
+        groupedHistory.push(msg);
       }
+    });
+
+    // 2. Incremental DOM update
+    const existingNodesMap = new Map();
+    Array.from(chatMessages.children).forEach(child => {
+      if (child.dataset.groupId) {
+        existingNodesMap.set(child.dataset.groupId, child);
+      }
+    });
+
+    const newContainer = document.createDocumentFragment();
+    let domChanged = false;
+
+    groupedHistory.forEach(item => {
+      const groupId = item.id;
+      let existingNode = existingNodesMap.get(groupId);
+      let needsRender = true;
+
+      if (existingNode) {
+        if (item.type === 'image_album') {
+          if (parseInt(existingNode.dataset.imgCount) === item.images.length) {
+            needsRender = false;
+          }
+        } else if (item.type === 'upload') {
+          needsRender = true; 
+        } else {
+          needsRender = false;
+        }
+      }
+
+      if (!needsRender) {
+        newContainer.appendChild(existingNode);
+        existingNodesMap.delete(groupId);
+      } else {
+        domChanged = true;
+        const div = createMessageNode(item);
+        newContainer.appendChild(div);
+      }
+    });
+
+    if (existingNodesMap.size > 0 || domChanged) {
+      chatMessages.innerHTML = '';
+      chatMessages.appendChild(newContainer);
+      updateBatchUI(); // sync checkboxes if any
+    }
+    
+    if (isAtBottom && domChanged) {
+      setTimeout(() => chatMessages.scrollTop = chatMessages.scrollHeight, 50);
     }
   }
 
-  // --- Attachments / Upload ---
-  btnAttach.addEventListener('click', () => {
-    fileUploadInput.click();
-  });
+  function doCopy(encodedText, btnEl) {
+    const text = decodeURIComponent(encodedText);
+    const showSuccess = (el) => {
+      showToast('已复制到剪贴板', 'success');
+      if (el && el.tagName === 'BUTTON') {
+         const originalText = el.innerHTML;
+         el.innerHTML = '已复制';
+         setTimeout(() => el.innerHTML = originalText, 2000);
+      }
+    };
+    const fallbackCopy = (text, el) => {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        if (document.execCommand('copy')) showSuccess(el);
+        else showToast('复制失败', 'error');
+      } catch (err) {
+        showToast('复制失败', 'error');
+      }
+      document.body.removeChild(textArea);
+    };
 
-  fileUploadInput.addEventListener('change', (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
+    if (navigator.clipboard && window.isSecureContext) {
+       navigator.clipboard.writeText(text).then(() => showSuccess(btnEl)).catch(() => fallbackCopy(text, btnEl));
+    } else {
+       fallbackCopy(text, btnEl);
+    }
+  }
+
+  function createMessageNode(msg) {
+    const isSelf = msg.clientId === myClientId;
+    const div = document.createElement('div');
+    div.className = `chat-message ${isSelf ? 'self' : 'other'}`;
+    div.dataset.groupId = msg.id;
+
+    const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    let metaHtml = `<span class="time">${time}</span> <span>${msg.deviceName}</span>`;
     
-    files.forEach(file => {
-      uploadFileAsMessage(file);
-    });
-    fileUploadInput.value = '';
-  });
+    if (msg.type === 'text') {
+      if (!isSelf) {
+        metaHtml += `<button class="btn-copy-msg" data-text="${encodeURIComponent(msg.content)}">复制内容</button>`;
+      }
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="msg:${msg.id}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble text-bubble" data-text="${encodeURIComponent(msg.content)}" style="cursor: pointer;" title="">${escapeHtml(msg.content)}</div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+
+      // bind events
+      const copyBtn = div.querySelector('.btn-copy-msg');
+      if (copyBtn) copyBtn.onclick = (e) => { if(!isBatchMode) { e.stopPropagation(); doCopy(copyBtn.dataset.text, copyBtn); } };
+      
+      const textBubble = div.querySelector('.text-bubble');
+      if (textBubble) textBubble.onclick = (e) => { if(!isBatchMode) { e.stopPropagation(); doCopy(textBubble.dataset.text, null); } };
+
+    } else if (msg.type === 'image_album') {
+      div.dataset.imgCount = msg.images.length;
+      let albumValue = msg.images.map(img => encodeURIComponent(img.content)).join('|');
+      let gridHtml = `
+        <div class="album-header">
+          <span class="album-title">🖼️ 图片相册 (${msg.images.length}张)</span>
+          <button class="btn-download-album" data-files="${albumValue}" title="打包下载整个相册">📦 提取打包</button>
+        </div>
+        <div class="nine-grid" data-count="${msg.images.length}">`;
+      msg.images.slice(0, 9).forEach((img, idx) => {
+        const thumbUrl = `/api/files/thumbnail/${encodeURIComponent(img.content)}`;
+        if (idx === 8 && msg.images.length > 9) {
+          gridHtml += `
+            <div class="img-wrapper">
+              <img src="${thumbUrl}" class="image-preview grid-img" data-src="${img.fileUrl}" data-name="${escapeHtml(img.content)}" alt="${escapeHtml(img.content)}" title="">
+              <div class="more-overlay" style="pointer-events: none;">+${msg.images.length - 9}</div>
+            </div>
+          `;
+        } else {
+          gridHtml += `<img src="${thumbUrl}" class="image-preview grid-img" data-src="${img.fileUrl}" data-name="${escapeHtml(img.content)}" alt="${escapeHtml(img.content)}" title="">`;
+        }
+      });
+      gridHtml += `</div>`;
+
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="album:${albumValue}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble file-card image-album-card" data-filename="${albumValue}">
+              ${gridHtml}
+            </div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+
+      const images = div.querySelectorAll('.image-preview, .more-overlay');
+      const albumImages = msg.images;
+      images.forEach((img, idx) => {
+        // Find closest image-preview if clicked on overlay
+        let realImg = img.classList.contains('image-preview') ? img : img.parentElement.querySelector('.image-preview');
+        if(!realImg) return;
+        img.onclick = (e) => {
+          if(isBatchMode) return;
+          e.stopPropagation();
+          // The index for overlay is also 8
+          let clickedIdx = idx > 8 ? 8 : idx;
+          if (window.openGallery) {
+             window.openGallery(albumImages, clickedIdx);
+          }
+        };
+      });
+
+    } else if (msg.type === 'file') {
+      const sizeStr = formatSize(msg.fileSize);
+      const icon = getFileIcon(msg.content);
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 0;">
+              <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px;">
+                <div class="file-icon-large">${icon}</div>
+                <div class="file-details">
+                  <span class="file-name">${escapeHtml(msg.content)}</span>
+                  <span class="file-size">${sizeStr}</span>
+                </div>
+              </a>
+            </div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+      
+      const fileCard = div.querySelector('.file-card');
+      const aLink = div.querySelector('a');
+      if (aLink) aLink.onclick = (e) => { if(isBatchMode) e.preventDefault(); };
+
+    } else if (msg.type === 'upload') {
+      const icon = getFileIcon(msg.content);
+      div.innerHTML = `
+        <div class="file-bubble">
+          <div class="file-icon-large">${icon}</div>
+          <div class="file-details">
+            <span class="file-name">${escapeHtml(msg.content)}</span>
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;">
+              <span class="file-size">${msg.fileSize}</span>
+              <span id="speed_${msg.id}" style="color: var(--primary-color);">${msg.speed || ''}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
+                 <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
+              </div>
+              <button class="btn-cancel-upload" data-id="${msg.id}" title="取消上传" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">✖</button>
+            </div>
+          </div>
+        </div>
+        <div class="chat-meta">${metaHtml}</div>
+      `;
+      
+      const cancelBtn = div.querySelector('.btn-cancel-upload');
+      if (cancelBtn) {
+        cancelBtn.onclick = () => {
+          const id = cancelBtn.dataset.id;
+          if (activeXhrs.has(id)) {
+            activeXhrs.get(id).abort();
+            activeXhrs.delete(id);
+          }
+          uploadingFiles.delete(id);
+          fetchUnifiedMessages();
+        };
+      }
+    }
+    return div;
+  }
 
   function uploadFileAsMessage(file) {
     if (serverMaxFileSize && file.size > serverMaxFileSize) {
@@ -1174,7 +1265,29 @@ document.addEventListener('DOMContentLoaded', () => {
     dragCounter = 0;
     dragOverlay.classList.add('hidden');
 
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer && e.dataTransfer.items) {
+      const items = Array.from(e.dataTransfer.items);
+      let hasDirectory = false;
+      
+      items.forEach(item => {
+        if (item.kind === 'file') {
+          const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+          if (entry && entry.isDirectory) {
+            hasDirectory = true;
+          } else {
+            const file = item.getAsFile();
+            if (file) {
+              uploadFileAsMessage(file);
+            }
+          }
+        }
+      });
+      
+      if (hasDirectory) {
+        showToast('📁 不支持直接发送文件夹，请先将其压缩为 .zip 后再拖入。', 'error');
+      }
+    } else if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      // Fallback for older browsers
       const files = Array.from(e.dataTransfer.files);
       files.forEach(file => {
         uploadFileAsMessage(file);
@@ -1219,18 +1332,72 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, "&#039;");
   }
 
-  // --- Lightbox ---
-  function openLightbox(src, filename) {
-    lightboxImg.src = src;
-    lightboxDownload.href = src;
-    lightboxDownload.download = filename;
+  // --- Lightbox Gallery ---
+  let galleryImages = [];
+  let currentGalleryIndex = 0;
+  const btnPrev = document.getElementById('lightbox-prev');
+  const btnNext = document.getElementById('lightbox-next');
+
+  window.openGallery = function(imagesArr, startIndex) {
+    galleryImages = imagesArr.map(img => ({ src: img.fileUrl, name: img.content }));
+    currentGalleryIndex = startIndex;
+    updateGalleryView();
     lightbox.classList.remove('hidden');
+  };
+
+  window.openLightbox = function(src, filename) {
+    galleryImages = [{ src, name: filename }];
+    currentGalleryIndex = 0;
+    updateGalleryView();
+    lightbox.classList.remove('hidden');
+  };
+
+  function updateGalleryView() {
+    if (galleryImages.length === 0) return;
+    const imgData = galleryImages[currentGalleryIndex];
+    lightboxImg.src = imgData.src;
+    lightboxDownload.href = imgData.src;
+    lightboxDownload.download = imgData.name;
+    
+    if (galleryImages.length > 1) {
+      if (btnPrev) btnPrev.classList.remove('hidden');
+      if (btnNext) btnNext.classList.remove('hidden');
+    } else {
+      if (btnPrev) btnPrev.classList.add('hidden');
+      if (btnNext) btnNext.classList.add('hidden');
+    }
   }
+
+  function nextGalleryImage(e) {
+    if (e) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    currentGalleryIndex = (currentGalleryIndex + 1) % galleryImages.length;
+    updateGalleryView();
+  }
+
+  function prevGalleryImage(e) {
+    if (e) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    currentGalleryIndex = (currentGalleryIndex - 1 + galleryImages.length) % galleryImages.length;
+    updateGalleryView();
+  }
+
+  if (btnNext) btnNext.addEventListener('click', nextGalleryImage);
+  if (btnPrev) btnPrev.addEventListener('click', prevGalleryImage);
+
+  document.addEventListener('keydown', (e) => {
+    if (!lightbox.classList.contains('hidden')) {
+      if (e.key === 'ArrowRight') nextGalleryImage();
+      if (e.key === 'ArrowLeft') prevGalleryImage();
+      if (e.key === 'Escape') closeLightbox();
+    }
+  });
 
   function closeLightbox() {
     lightbox.classList.add('hidden');
     setTimeout(() => {
       lightboxImg.src = '';
+      galleryImages = [];
     }, 300); // clear after animation
   }
 
@@ -1269,13 +1436,11 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => toast.remove(), 300);
     }, 3000);
   }
-});
 
 // ============================================
 // 局域网测速 (Speed Test) 逻辑
 // ============================================
-(function initSpeedTest() {
-  const btnSpeedtest = document.getElementById('btn-speedtest');
+
   const speedtestModal = document.getElementById('speedtest-modal');
   const btnCloseSpeedtest = document.getElementById('btn-close-speedtest');
   const btnStartSpeedtest = document.getElementById('btn-start-speedtest');
@@ -1283,11 +1448,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const speedUpload = document.getElementById('speed-upload');
   const speedtestConclusion = document.getElementById('speedtest-conclusion');
 
-  if (btnSpeedtest) {
-    btnSpeedtest.addEventListener('click', () => {
-      speedtestModal.classList.remove('hidden');
-    });
-  }
+
 
   if (btnCloseSpeedtest) {
     btnCloseSpeedtest.addEventListener('click', () => {
@@ -1361,6 +1522,272 @@ document.addEventListener('DOMContentLoaded', () => {
     return (bytesSent / 1024 / 1024) / finalElapsed;
   }
 
+  // ==========================================
+  // Batch Management Logic
+  // ==========================================
+  
+  function updateBatchUI() {
+    if (isBatchMode) {
+      document.body.classList.add('batch-mode');
+      if (fabContainer) fabContainer.classList.add('hidden');
+      if (batchActionBar) batchActionBar.classList.remove('hidden');
+      if (batchSelectedCount) batchSelectedCount.textContent = `已选 ${selectedFiles.size} 项`;
+    } else {
+      document.body.classList.remove('batch-mode');
+      if (fabContainer) fabContainer.classList.remove('hidden');
+      if (batchActionBar) batchActionBar.classList.add('hidden');
+      selectedFiles.clear();
+      document.querySelectorAll('.batch-checkbox').forEach(cb => cb.checked = false);
+    }
+  }
+
+  function enterBatchMode(initialFilename = null) {
+    if (isBatchMode) return;
+    isBatchMode = true;
+    selectedFiles.clear();
+    if (initialFilename) {
+      selectedFiles.add(initialFilename);
+    }
+    updateBatchUI();
+
+    fetchUnifiedMessages(); // trigger re-render
+  }
+
+  function exitBatchMode() {
+    isBatchMode = false;
+    updateBatchUI();
+    fetchUnifiedMessages();
+  }
+
+  // FAB Menu Logic
+  if (fabMain) {
+    fabMain.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = fabMain.classList.contains('active');
+      if (isExpanded) {
+        fabMain.classList.remove('active');
+        fabMenu.classList.add('hidden');
+      } else {
+        fabMain.classList.add('active');
+        fabMenu.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Hide FAB menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (fabContainer && !fabContainer.contains(e.target)) {
+      fabMain.classList.remove('active');
+      fabMenu.classList.add('hidden');
+    }
+  });
+
+  if (fabMenuBatch) {
+    fabMenuBatch.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fabMain.classList.remove('active');
+      fabMenu.classList.add('hidden');
+      enterBatchMode();
+    });
+  }
+
+  if (fabMenuSpeedtest) {
+    fabMenuSpeedtest.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fabMain.classList.remove('active');
+      fabMenu.classList.add('hidden');
+      
+      const modal = document.getElementById('speedtest-modal');
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+    });
+  }
+
+  if (btnBatchCancel) btnBatchCancel.addEventListener('click', () => exitBatchMode());
+
+
+  if (btnBatchDownload) {
+    btnBatchDownload.addEventListener('click', () => {
+      if (selectedFiles.size === 0) return;
+      const itemsArray = Array.from(selectedFiles);
+      const filesToDownload = itemsArray.filter(item => item.startsWith('file:')).map(item => decodeURIComponent(item.substring(5)));
+      const albumsToDownload = itemsArray.filter(item => item.startsWith('album:')).map(item => item.substring(6));
+      albumsToDownload.forEach(albumStr => {
+        albumStr.split('|').forEach(file => filesToDownload.push(decodeURIComponent(file)));
+      });
+      
+      if (filesToDownload.length > 0) {
+        const queryParams = filesToDownload.map(f => `files[]=${encodeURIComponent(f)}`).join('&');
+        const checkUrl = `/api/files/check-zip?${queryParams}`;
+        const url = `/api/files/download-zip?type=batch&${queryParams}`;
+        
+        fetch(checkUrl).then(res => res.json()).then(data => {
+          if (data.valid) {
+            const a = document.createElement('a');
+            a.href = url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            exitBatchMode();
+          } else {
+            showToast('选中的文件不存在或已被删除，无法打包', 'error');
+          }
+        }).catch(() => showToast('网络错误', 'error'));
+      } else {
+        // 如果全部是纯文本（没有提取出任何有效文件）
+        showToast('请至少选择一个文件或相册，纯文本暂不支持打包下载。', 'error');
+      }
+    });
+  }
+
+  if (btnBatchDelete) {
+    btnBatchDelete.addEventListener('click', async () => {
+      if (selectedFiles.size === 0) return;
+      if (!confirm(`确定要删除选中的 ${selectedFiles.size} 项吗？`)) return;
+
+      const itemsArray = Array.from(selectedFiles);
+      const filesToDelete = itemsArray.filter(item => item.startsWith('file:')).map(item => item.substring(5));
+      const msgsToDelete = itemsArray.filter(item => item.startsWith('msg:')).map(item => item.substring(4));
+      
+      const albumsToDelete = itemsArray.filter(item => item.startsWith('album:')).map(item => item.substring(6));
+      albumsToDelete.forEach(albumStr => {
+        albumStr.split('|').forEach(file => filesToDelete.push(file));
+      });
+
+      try {
+        const promises = [];
+        if (filesToDelete.length > 0) {
+          promises.push(fetch('/api/files/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files: filesToDelete })
+          }).then(res => res.json()));
+        }
+
+        if (msgsToDelete.length > 0) {
+          promises.push(fetch('/api/clipboard/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: msgsToDelete })
+          }).then(res => res.json()));
+        }
+
+        const results = await Promise.all(promises);
+        
+        let allSuccess = true;
+        for (const data of results) {
+          if (!data.success) {
+            allSuccess = false;
+            showToast(data.error || '部分删除失败', 'error');
+          }
+        }
+
+        if (allSuccess) {
+          showToast('删除成功', 'success');
+          exitBatchMode();
+        } else {
+          exitBatchMode();
+        }
+      } catch (err) {
+        showToast('删除请求失败', 'error');
+      }
+    });
+  }
+
+  let pressTimer;
+  let isDragging = false;
+
+  chatMessages.addEventListener('mousedown', handlePressStart);
+  chatMessages.addEventListener('touchstart', handlePressStart, { passive: true });
+
+  chatMessages.addEventListener('mouseup', handlePressEnd);
+  chatMessages.addEventListener('mouseleave', handlePressEnd);
+  chatMessages.addEventListener('touchend', handlePressEnd);
+  chatMessages.addEventListener('touchcancel', handlePressEnd);
+
+  chatMessages.addEventListener('mousemove', () => isDragging = true);
+  chatMessages.addEventListener('touchmove', () => isDragging = true, { passive: true });
+
+  function handlePressStart(e) {
+    const messageRow = e.target.closest('.message-row');
+    if (!messageRow) return;
+    
+    isDragging = false;
+    let initialItemId = null;
+    
+    const cb = messageRow.querySelector('.batch-checkbox');
+    if (cb) {
+      initialItemId = cb.value;
+    }
+    
+    pressTimer = window.setTimeout(() => {
+      if (!isDragging && !isBatchMode && initialItemId) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        enterBatchMode(initialItemId);
+      }
+    }, 500); // 500ms 长按触发
+  }
+
+  function handlePressEnd() {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  }
+
+  // 代理复选框和卡片点击事件
+  chatMessages.addEventListener('click', (e) => {
+    // 处理相册提取按钮点击 (不限批量模式)
+    if (e.target.classList.contains('btn-download-album')) {
+      const filesStr = e.target.dataset.files;
+      if (filesStr) {
+        // filesStr 已经是 encodeURIComponent(filename) 用 '|' 拼接的了
+        const filesToDownload = filesStr.split('|').map(f => decodeURIComponent(f));
+        const queryParams = filesToDownload.map(f => `files[]=${encodeURIComponent(f)}`).join('&');
+        const checkUrl = `/api/files/check-zip?${queryParams}`;
+        const url = `/api/files/download-zip?type=album&${queryParams}`;
+        
+        fetch(checkUrl).then(res => res.json()).then(data => {
+          if (data.valid) {
+            const a = document.createElement('a');
+            a.href = url;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else {
+            showToast('相册中的图片不存在或已被删除，无法打包', 'error');
+          }
+        }).catch(() => showToast('网络错误', 'error'));
+      }
+      return;
+    }
+
+    if (!isBatchMode) return;
+
+    const messageRow = e.target.closest('.message-row');
+    if (messageRow) {
+      const cb = messageRow.querySelector('.batch-checkbox');
+      if (cb) {
+        // Only prevent default if we didn't click the checkbox directly
+        // This allows native checkbox toggling and prevents double-toggling
+        if (e.target !== cb && !cb.contains(e.target)) {
+          e.preventDefault();
+          e.stopPropagation();
+          cb.checked = !cb.checked;
+        }
+        
+        const idVal = cb.value;
+        if (cb.checked) {
+          selectedFiles.add(idVal);
+        } else {
+          selectedFiles.delete(idVal);
+        }
+        updateBatchUI();
+      }
+    }
+  });
+
   if (btnStartSpeedtest) {
     btnStartSpeedtest.addEventListener('click', async () => {
       btnStartSpeedtest.disabled = true;
@@ -1404,4 +1831,4 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-})();
+});
