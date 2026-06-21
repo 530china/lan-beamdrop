@@ -164,7 +164,7 @@ router.get('/thumbnail/:filename', async (req, res) => {
  * GET /api/files/download-zip
  * 批量下载指定文件，动态打包为 ZIP (流式输出，不写磁盘)
  */
-router.get('/download-zip', (req, res) => {
+router.get('/download-zip', async (req, res) => {
   try {
     let files = req.query.files;
     if (!files) {
@@ -195,8 +195,6 @@ router.get('/download-zip', (req, res) => {
       
       const filePath = path.join(config.shareDir, filename);
       const resolvedPath = path.resolve(filePath);
-      
-      console.log(`[download-zip] 请求文件: "${filename}", 是否存在: ${fs.existsSync(filePath)}`);
 
       // 安全检查：防目录穿越攻击
       if (!resolvedPath.startsWith(path.resolve(config.shareDir))) {
@@ -204,14 +202,17 @@ router.get('/download-zip', (req, res) => {
         continue;
       }
 
-      if (fs.existsSync(filePath)) {
-        const stat = fs.statSync(filePath);
+      try {
+        await fs.promises.access(filePath);
+        console.log(`[download-zip] 请求文件: "${filename}", 是否存在: true`);
+        const stat = await fs.promises.stat(filePath);
         // 忽略处于上传中的临时文件
         if (!filename.endsWith('.uploading') && stat.isFile()) {
           archive.file(filePath, { name: filename });
           hasFiles = true;
         }
-      } else {
+      } catch (err) {
+        console.log(`[download-zip] 请求文件: "${filename}", 是否存在: false`);
         console.warn(`[打包下载] 文件不存在被跳过: ${filename}`);
       }
     }
@@ -254,7 +255,7 @@ router.get('/download-zip', (req, res) => {
 
 // GET /api/files/check-zip
 // 用于前端预检，防止点击下载时页面跳转到错误 JSON
-router.get('/check-zip', (req, res) => {
+router.get('/check-zip', async (req, res) => {
   try {
     let files = req.query.files;
     if (!files) return res.status(400).json({ success: false, error: '未指定要检查的文件' });
@@ -273,14 +274,16 @@ router.get('/check-zip', (req, res) => {
         continue;
       }
 
-      console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: ${fs.existsSync(filePath)}`);
-
-      if (fs.existsSync(filePath)) {
-        const stat = fs.statSync(filePath);
+      try {
+        await fs.promises.access(filePath);
+        console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: true`);
+        const stat = await fs.promises.stat(filePath);
         if (!filename.endsWith('.uploading') && stat.isFile()) {
           // 只要找到一个有效文件即可打包
           return res.json({ valid: true });
         }
+      } catch (err) {
+        console.log(`[check-zip] 检查文件: "${filename}", 路径: "${filePath}", 是否存在: false`);
       }
     }
     return res.json({ valid: false });
