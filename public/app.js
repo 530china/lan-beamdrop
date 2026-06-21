@@ -884,10 +884,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function doCopy(encodedText, btnEl) {
     const text = decodeURIComponent(encodedText);
     const showSuccess = (el) => {
-      showToast('?? �Ѹ���', 'success');
+      showToast('已复制到剪贴板', 'success');
       if (el && el.tagName === 'BUTTON') {
          const originalText = el.innerHTML;
-         el.innerHTML = '?? �Ѹ���';
+         el.innerHTML = '已复制';
          setTimeout(() => el.innerHTML = originalText, 2000);
       }
     };
@@ -902,9 +902,9 @@ document.addEventListener('DOMContentLoaded', () => {
       textArea.select();
       try {
         if (document.execCommand('copy')) showSuccess(el);
-        else showToast('? ����ʧ��', 'error');
+        else showToast('复制失败', 'error');
       } catch (err) {
-        showToast('? ����ʧ��', 'error');
+        showToast('复制失败', 'error');
       }
       document.body.removeChild(textArea);
     };
@@ -1045,7 +1045,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="upload-progress-container" style="flex: 1; margin-top: 0;">
                  <div class="upload-progress-bar" id="prog_${msg.id}" style="width: ${msg.progress}%"></div>
               </div>
-              <button class="btn-cancel-upload" data-id="${msg.id}" title="ȡ���ϴ�" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">?</button>
+              <button class="btn-cancel-upload" data-id="${msg.id}" title="取消上传" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1rem; line-height: 1;">✖</button>
             </div>
           </div>
         </div>
