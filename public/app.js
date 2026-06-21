@@ -1,3 +1,6 @@
+import { formatBytes, escapeHtml, showToast } from './js/utils.js';
+import { apiConfig, fetchFiles, fetchClipboard, deleteFile } from './js/api.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
   const headerDeviceName = document.getElementById('device-name');
@@ -688,8 +691,8 @@ document.addEventListener('DOMContentLoaded', () => {
   async function fetchUnifiedMessages() {
     try {
       const [clipRes, filesRes] = await Promise.all([
-        fetch('/api/clipboard'),
-        fetch('/api/files')
+        fetchClipboard(),
+        fetchFiles()
       ]);
       
       let history = [];
@@ -1004,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
     } else if (msg.type === 'file') {
-      const sizeStr = formatSize(msg.fileSize);
+      const sizeStr = formatBytes(msg.fileSize);
       const icon = getFileIcon(msg.content);
       div.innerHTML = `
         <div class="message-row">
@@ -1101,7 +1104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (diffTime >= 500 || e.loaded === e.total) {
           const diffLoaded = e.loaded - lastLoaded;
           const speedBps = (diffLoaded / diffTime) * 1000;
-          upObj.speed = formatSize(speedBps) + '/s';
+          upObj.speed = formatBytes(speedBps) + '/s';
           lastLoaded = e.loaded;
           lastTime = now;
         }
@@ -1313,24 +1316,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
   }
 
-  function formatSize(bytes) {
-    if (bytes === undefined || isNaN(bytes)) return bytes; // for "上传中..." string
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
+  
 
-  function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
+  
 
   // --- Lightbox Gallery ---
   let galleryImages = [];
@@ -1424,18 +1412,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Toast ---
-  function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.style.animation = 'toastFadeOut 0.3s forwards';
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
+  
 
 // ============================================
 // 局域网测速 (Speed Test) 逻辑
@@ -1658,11 +1635,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const promises = [];
         if (filesToDelete.length > 0) {
-          promises.push(fetch('/api/files/batch-delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: filesToDelete })
-          }).then(res => res.json()));
+          promises.push(deleteFile(filesToDelete));
         }
 
         if (msgsToDelete.length > 0) {
