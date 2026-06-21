@@ -662,10 +662,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data && data.type) {
-          // Trigger a UI update instantly when a broadcast is received
-          fetchUnifiedMessages();
+        const payload = JSON.parse(event.data);
+        if (payload && payload.action) {
+          if (payload.action === 'FILE_ADDED') {
+            const files = Array.isArray(payload.data.files) ? payload.data.files : [payload.data.files];
+            files.forEach(file => {
+               const msg = {
+                 id: 'file_' + file.name + '_' + file.mtime,
+                 type: 'file',
+                 content: file.name,
+                 fileUrl: '/api/files/download/' + encodeURIComponent(file.name),
+                 fileSize: file.size,
+                 clientId: 'HOST',
+                 deviceName: '🖥️ 服务端文件 (' + window.location.hostname + ')',
+                 timestamp: file.mtime
+               };
+               fullUnifiedHistory.push(msg);
+            });
+            applySearchAndRender();
+            scrollToBottom(true);
+          } else if (payload.action === 'CLIPBOARD_ADDED') {
+            const msg = {
+               ...payload.data,
+               type: 'text'
+            };
+            fullUnifiedHistory.push(msg);
+            applySearchAndRender();
+            scrollToBottom(true);
+          } else if (payload.action === 'FILE_DELETED') {
+            const deletedFiles = payload.data.deletedFiles || [];
+            fullUnifiedHistory = fullUnifiedHistory.filter(h => !(h.type === 'file' && deletedFiles.includes(h.content)));
+            applySearchAndRender();
+          } else if (payload.action === 'CLIPBOARD_DELETED') {
+            if (payload.data && payload.data.ids) {
+              const ids = payload.data.ids;
+              fullUnifiedHistory = fullUnifiedHistory.filter(h => !(h.type === 'text' && ids.includes(h.id)));
+            } else {
+              fullUnifiedHistory = fullUnifiedHistory.filter(h => h.type !== 'text');
+            }
+            applySearchAndRender();
+          }
         }
       } catch (err) {
         console.error('[WebSocket] Message parse error:', err);

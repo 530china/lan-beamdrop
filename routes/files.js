@@ -400,16 +400,23 @@ router.post('/upload', (req, res, next) => {
         return { name: f.filename, size: f.size, path: f.path };
       }
       
+      let mtime = new Date().toISOString();
+      try {
+        const stats = fs.statSync(finalPath);
+        mtime = stats.mtime.toISOString();
+      } catch (e) { /* ignore */ }
+      
       return {
         name: finalName,
         size: f.size,
         path: finalPath,
+        mtime: mtime
       };
     });
 
     console.log(`[文件] 收到 ${uploaded.length} 个文件:`, uploaded.map((f) => f.name).join(', '));
 
-    broadcastUpdate('NEW_FILE');
+    broadcastUpdate('FILE_ADDED', { files: uploaded });
 
     res.json({
       success: true,
@@ -462,7 +469,7 @@ router.post('/batch-delete', (req, res) => {
     });
 
     if (deletedFiles.length > 0) {
-      broadcastUpdate('DELETE_FILE');
+      broadcastUpdate('FILE_DELETED', { deletedFiles });
     }
 
     res.json({
@@ -499,7 +506,7 @@ router.delete('/:filename', (req, res) => {
     fs.unlinkSync(filePath);
     console.log(`[文件] 已删除: ${filename}`);
 
-    broadcastUpdate('DELETE_FILE');
+    broadcastUpdate('FILE_DELETED', { deletedFiles: [filename] });
 
     res.json({ success: true, message: `已删除 ${filename}` });
   } catch (err) {

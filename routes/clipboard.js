@@ -58,7 +58,7 @@ router.post('/', async (req, res) => {
       console.warn('[剪切板] 写入 PC 系统剪切板失败:', writeErr.message);
     }
 
-    broadcastUpdate('NEW_CLIPBOARD');
+    broadcastUpdate('CLIPBOARD_ADDED', msg);
 
     res.json({ success: true, message: msg });
   } catch (err) {
@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
 router.delete('/', (req, res) => {
   try {
     clipboard.clearHistory();
-    broadcastUpdate('DELETE_CLIPBOARD');
+    broadcastUpdate('CLIPBOARD_DELETED');
     res.json({ success: true, message: '历史记录已清空' });
   } catch (err) {
     res.status(500).json({ success: false, error: '清空历史记录失败' });
@@ -92,7 +92,7 @@ router.post('/batch-delete', (req, res) => {
       return res.status(400).json({ success: false, error: '无效的 ID 列表' });
     }
     clipboard.deleteMessages(ids);
-    broadcastUpdate('DELETE_CLIPBOARD');
+    broadcastUpdate('CLIPBOARD_DELETED', { ids });
     res.json({ success: true, message: `已成功删除 ${ids.length} 条消息记录` });
   } catch (err) {
     console.error('[剪切板] 批量删除记录失败:', err.message);
