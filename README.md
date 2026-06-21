@@ -49,6 +49,6 @@ Apache License 2.0
 本项目已配置高度自动化的 GitHub Actions 流水线。支持全平台（Windows、macOS、Linux）可执行文件 `pkg` 自动打包发布。
 
 支持以下 **三种触发发版** 的姿势（版本号会自动同步到客户端）：
-1. **纯净极客流 (本地终端)**: 本地执行 `npm version patch` (或 minor/major)，然后 `git push --follow-tags`。
+1. **纯净极客流 (本地终端)**: 本地执行 `npm version patch` (或 minor/major)，然后 `git push --follow-tags`。详见 👉 [本地发版指南](./docs/RELEASE_GUIDE.md)。
 2. **产品经理流 (Releases 面板)**: 在 GitHub 的 `Releases` 页面点击 "Draft a new release"，填入 Tag（如 `v0.1.3`）并写好更新日志后，点击 "Publish release" 即可。打包完成后附件会自动挂载。
 3. **老板流 (Actions 面板)**: 进入 GitHub `Actions` 页面，选择 `CI/CD Pipeline`，点击 `Run workflow`，输入期望的版本号（如 `0.1.3`）点击运行。脚本将全自动修改版本号、打包并创建对应的 Release 页面。
