@@ -1635,7 +1635,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const promises = [];
         if (filesToDelete.length > 0) {
-          promises.push(deleteFile(filesToDelete));
+          promises.push(deleteFile(filesToDelete).then(res => res.json()));
         }
 
         if (msgsToDelete.length > 0) {
