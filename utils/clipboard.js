@@ -139,12 +139,12 @@ async function syncFromPC() {
       };
       clipboardHistory.push(msg);
       saveHistory();
-      return true;
+      return msg;
     }
-    return false;
+    return null;
   } catch (err) {
     // 忽略错误
-    return false;
+    return null;
   }
 }
 
@@ -152,9 +152,9 @@ let monitorTimer = null;
 function startClipboardMonitor(broadcastUpdate) {
   if (monitorTimer) clearInterval(monitorTimer);
   monitorTimer = setInterval(async () => {
-    const changed = await syncFromPC();
-    if (changed && typeof broadcastUpdate === 'function') {
-      broadcastUpdate('NEW_CLIPBOARD');
+    const msg = await syncFromPC();
+    if (msg && typeof broadcastUpdate === 'function') {
+      broadcastUpdate('CLIPBOARD_ADDED', msg);
     }
   }, 1000); // 每秒主动探测一次系统剪切板
 }

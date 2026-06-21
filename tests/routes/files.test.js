@@ -133,7 +133,21 @@ jest.mock('fs', () => {
       if (!mockMemoryFs[oldPath]) throw new Error('ENOENT');
       mockMemoryFs[newPath] = mockMemoryFs[oldPath];
       delete mockMemoryFs[oldPath];
-    })
+    }),
+    promises: {
+      access: jest.fn(async (p) => {
+        if (!mockMemoryFs[p]) throw new Error(`ENOENT: no such file or directory, access '${p}'`);
+      }),
+      stat: jest.fn(async (p) => {
+        if (!mockMemoryFs[p]) throw new Error(`ENOENT: no such file or directory, stat '${p}'`);
+        return {
+          isDirectory: () => mockMemoryFs[p].type === 'dir',
+          isFile: () => mockMemoryFs[p].type === 'file',
+          size: mockMemoryFs[p].content ? mockMemoryFs[p].content.length : 0,
+          mtime: new Date()
+        };
+      })
+    }
   };
 });
 
