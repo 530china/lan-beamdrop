@@ -77,6 +77,22 @@ jobs:
       - name: Build executables with pkg
         run: npm run build
 
+      - name: Smoke test Linux executable
+        run: |
+          echo "Starting Linux executable in the background..."
+          chmod +x ./dist/lan-beamdrop-linux
+          ./dist/lan-beamdrop-linux &
+          PID=$!
+          echo "Process started with PID $PID. Waiting for 3 seconds..."
+          sleep 3
+          if kill -0 $PID 2>/dev/null; then
+            echo "✅ Smoke test passed: Executable is running successfully."
+            kill $PID || true
+          else
+            echo "❌ Smoke test failed: Executable crashed silently."
+            exit 1
+          fi
+
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:

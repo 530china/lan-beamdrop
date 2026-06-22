@@ -5,8 +5,43 @@
   "main": "server.js",
   "bin": "server.js",
   "pkg": {
+    "scripts": [
+      "node_modules/@jimp/**/*.js",
+      "node_modules/jimp/**/*.js",
+      "node_modules/any-base/**/*.js",
+      "node_modules/base64-js/**/*.js",
+      "node_modules/bmp-js/**/*.js",
+      "node_modules/buffer/**/*.js",
+      "node_modules/exif-parser/**/*.js",
+      "node_modules/file-type/**/*.js",
+      "node_modules/is-function/**/*.js",
+      "node_modules/jpeg-js/**/*.js",
+      "node_modules/load-bmfont/**/*.js",
+      "node_modules/min-document/**/*.js",
+      "node_modules/minimist/**/*.js",
+      "node_modules/mkdirp/**/*.js",
+      "node_modules/omggif/**/*.js",
+      "node_modules/pako/**/*.js",
+      "node_modules/parse-bmfont-ascii/**/*.js",
+      "node_modules/parse-bmfont-binary/**/*.js",
+      "node_modules/parse-bmfont-xml/**/*.js",
+      "node_modules/phin/**/*.js",
+      "node_modules/pngjs/**/*.js",
+      "node_modules/process/**/*.js",
+      "node_modules/regenerator-runtime/**/*.js",
+      "node_modules/timm/**/*.js",
+      "node_modules/tinycolor2/**/*.js",
+      "node_modules/utif/**/*.js",
+      "node_modules/xhr/**/*.js"
+    ],
     "assets": [
-      "public/**/*"
+      "public/**/*",
+      "node_modules/@jimp/**/*.json",
+      "node_modules/@jimp/**/*.fnt",
+      "node_modules/@jimp/**/*.png",
+      "node_modules/jimp/**/*.json",
+      "node_modules/jimp/**/*.fnt",
+      "node_modules/jimp/**/*.png"
     ],
     "targets": [
       "node18-win-x64",
@@ -21,7 +56,7 @@
     "build": "pkg . --out-path dist"
   },
   "dependencies": {
-    "archiver": "^8.0.0",
+    "archiver": "^7.0.1",
     "bonjour-service": "^1.2.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
