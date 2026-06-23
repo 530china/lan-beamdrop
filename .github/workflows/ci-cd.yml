@@ -99,6 +99,6 @@ jobs:
           tag_name: v${{ env.TARGET_VERSION }}
           name: Release v${{ env.TARGET_VERSION }}
           # 将 dist 目录下生成的所有二进制文件作为附件上传
-          files: dist/*
+          files: dist/lan-beamdrop-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
