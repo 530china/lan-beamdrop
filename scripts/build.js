@@ -13,7 +13,7 @@ console.log('====================================\n');
 try {
   // 第一步：使用 esbuild 解析 ESM 并合并代码
   console.log('[1/3] 正在使用 esbuild 抹平 ESM 依赖碎片...');
-  execSync('npx esbuild server.js --bundle --minify --platform=node --outfile=lan-beamdrop.js --format=cjs', { 
+  execSync('npx esbuild server.js --bundle --platform=node --outfile=lan-beamdrop.js --format=cjs', { 
     stdio: 'inherit',
     cwd: rootDir
   });

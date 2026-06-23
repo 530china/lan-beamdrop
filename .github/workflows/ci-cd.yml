@@ -10,10 +10,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '发布版本号 (例如: 0.1.3，不需要加 v)'
+        description: '发布版本号 (例如: 1.0.0)'
         required: true
         type: string
-        default: '0.1.3'
+        default: 'test-build'
+      publish:
+        description: '是否正式发布到 Releases 页面？(取消勾选则仅打包上传临时附件)'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -39,12 +44,10 @@ jobs:
         run: npm test
 
   build-and-release:
-    name: Build & Release Executables
+    name: Build & Package (Routine & Release)
     needs: test
-    # 当推送 v 开头的 tag，或手动触发时执行
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # 现在这个 job 将无条件运行（每个 PR 和 Push 都会测试打包）
     runs-on: ubuntu-latest
-    # 授权 action 对 Release 页面进行写入
     permissions:
       contents: write
     steps:
@@ -60,20 +63,24 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Inject version from tag or input into package.json
+      - name: Determine Version
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          else
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             VERSION=${GITHUB_REF_NAME#v}
+          else
+            # 普通推送时提取本地 package.json 版本号作为占位
+            VERSION=$(node -p "require('./package.json').version")
           fi
+          
           # 去除可能误填的 v 前缀
           VERSION=${VERSION#v}
           echo "TARGET_VERSION=$VERSION" >> $GITHUB_ENV
           npm version $VERSION --allow-same-version --no-git-tag-version || true
-          echo "Injected version: $VERSION"
+          echo "Building version: $VERSION"
 
-      - name: Build executables with pkg
+      - name: Build executables with esbuild and pkg
         run: npm run build
 
       - name: Smoke test Linux executable
@@ -92,7 +99,18 @@ jobs:
             exit 1
           fi
 
+      - name: Upload Artifacts (For routine PRs and Dry Runs)
+        # 只要不是打 Tag，且没有勾选正式发布的，都把产物作为临时附件供下载测试
+        if: startsWith(github.ref, 'refs/tags/v') == false && inputs.publish != true
+        uses: actions/upload-artifact@v4
+        with:
+          name: lan-beamdrop-builds
+          path: dist/lan-beamdrop-*
+          retention-days: 7
+
       - name: Publish to GitHub Releases
+        # 只有真正打 Tag，或者勾选了正式发布的手动触发，才会执行发布
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.TARGET_VERSION }}
