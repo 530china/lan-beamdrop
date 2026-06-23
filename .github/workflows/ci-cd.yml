@@ -6,8 +6,7 @@ on:
     tags: [ "v*.*.*" ]
   pull_request:
     branches: [ "main" ]
-  release:
-    types: [published]
+
   workflow_dispatch:
     inputs:
       version:
@@ -42,8 +41,8 @@ jobs:
   build-and-release:
     name: Build & Release Executables
     needs: test
-    # 当推送 v 开头的 tag、或发布 Release、或手动触发时执行
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    # 当推送 v 开头的 tag，或手动触发时执行
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # 授权 action 对 Release 页面进行写入
     permissions:
