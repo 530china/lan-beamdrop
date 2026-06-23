@@ -4,6 +4,7 @@ const settingsRouter = require('../../routes/settings');
 const config = require('../../config');
 const path = require('path');
 const fs = require('fs');
+const appdata = require('../../utils/appdata');
 
 const app = express();
 app.use(express.json());
@@ -23,8 +24,8 @@ app.use((req, res, next) => {
 app.use('/api/settings', settingsRouter);
 
 describe('Settings API Security & Functionality', () => {
-  // 必须指向根目录下的 settings_test.json，与 utils/settings.js 的测试环境隔离逻辑对齐
-  const settingsPath = path.join(__dirname, '../../settings_test.json');
+  // 使用 appdata.resolve 对齐 utils/settings.js 的测试环境路径
+  const settingsPath = appdata.resolve('settings_test.json');
   
   beforeEach(() => {
     if (fs.existsSync(settingsPath)) {

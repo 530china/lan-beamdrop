@@ -9,14 +9,11 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
-
-// 判断是否处于 pkg 打包环境
-const isPkg = typeof process.pkg !== 'undefined';
-const basePath = isPkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+const appdata = require('./appdata');
 
 // store history
 const historyFile = process.env.NODE_ENV === 'test' ? 'clipboard_history_test.json' : 'clipboard_history.json';
-const HISTORY_PATH = path.join(basePath, historyFile);
+const HISTORY_PATH = appdata.resolve(historyFile);
 
 let clipboardHistory = [];
 
