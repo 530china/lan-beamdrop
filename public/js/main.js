@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Settings
   const btnSettings = document.getElementById('btn-settings');
+  const btnOpenFolder = document.getElementById('btn-open-folder');
   const settingsModal = document.getElementById('settings-modal');
   const settingsBackdrop = document.getElementById('settings-backdrop');
   const btnSaveSettings = document.getElementById('btn-save-settings');
@@ -154,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Settings Visibility
         if (data.isLocalHost) {
           btnSettings.classList.remove('hidden');
+          if (btnOpenFolder) btnOpenFolder.classList.remove('hidden');
           if (inputShareDir) inputShareDir.value = data.shareDir || '';
           if (inputAccessPassword) inputAccessPassword.value = data.accessPassword || '';
           
@@ -236,6 +238,20 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSettings.addEventListener('click', openSettings);
   btnCloseSettings.addEventListener('click', closeSettings);
   settingsBackdrop.addEventListener('click', closeSettings);
+
+  if (btnOpenFolder) {
+    btnOpenFolder.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/settings/open-folder', { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          showToast(data.error || '无法打开文件夹', 'error');
+        }
+      } catch (err) {
+        showToast('网络错误', 'error');
+      }
+    });
+  }
 
   btnSaveSettings.addEventListener('click', async () => {
     const newDir = inputShareDir.value.trim();

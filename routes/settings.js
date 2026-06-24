@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { execFile } = require('child_process');
+const os = require('os');
+const fs = require('fs');
 const config = require('../config');
 const { updateSettings } = require('../utils/settings');
 const { isLocalHostReq } = require('../utils/network');
@@ -75,6 +78,37 @@ router.post('/', (req, res) => {
     }
 
     res.json({ success: true, message: '设置已保存' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/settings/open-folder - 打开本地共享目录
+router.post('/open-folder', (req, res) => {
+  try {
+    const folderPath = config.shareDir;
+    
+    // 确保物理目录存在
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    const platform = os.platform();
+    if (platform === 'win32') {
+      execFile('explorer.exe', [folderPath], (err) => {
+        if (err) console.error('[设置] 无法打开物理文件夹:', err);
+      });
+    } else if (platform === 'darwin') {
+      execFile('open', [folderPath], (err) => {
+        if (err) console.error('[设置] 无法打开物理文件夹:', err);
+      });
+    } else {
+      execFile('xdg-open', [folderPath], (err) => {
+        if (err) console.error('[设置] 无法打开物理文件夹:', err);
+      });
+    }
+
+    res.json({ success: true, message: '共享文件夹已打开' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
