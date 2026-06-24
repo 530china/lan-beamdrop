@@ -42,3 +42,10 @@ Before you complete a task or tell the user "I am done", you MUST execute the fo
 1. All feature developments, bug fixes, and tests must be committed to a dedicated **feature branch** (e.g., `feat/xxx`, `fix/xxx`).
 2. When pushing code to the remote repository, push the feature branch (`git push origin <branch-name>`).
 3. Inform the user that the branch has been pushed and a **Pull Request (PR)** needs to be manually created by the repository manager. The code will only be merged into `main` after passing the CI checks.
+
+## 8. Git Commit Message Guidelines (Strict Enforcement)
+- **Do NOT use brackets `[]` in the commit prefix.** The `[NEW/ENH/FIX]` in `docs/ARCHITECTURE.md` is a selection placeholder. The actual commit must start directly with the type (without brackets), for example:
+  - `NEW: ...` (not `[NEW]: ...`)
+  - `ENH: ...` (not `[ENH]: ...`)
+  - `FIX: ...` (not `[FIX]: ...`)
+- **Always include WHY, WHAT, and TEST sections** separated by blank lines exactly as defined in `docs/ARCHITECTURE.md`.
