@@ -17,6 +17,10 @@ export function isImage(filename) {
   return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
 }
 
+export function isVideo(filename) {
+  return /\.(mp4|webm|ogg|mov|mkv)$/i.test(filename);
+}
+
 export function doCopy(encodedText, btnEl) {
   const text = decodeURIComponent(encodedText);
   const showSuccess = (el) => {
@@ -140,30 +144,70 @@ export function createMessageNode(msg, context) {
 
   } else if (msg.type === 'file') {
     const sizeStr = formatBytes(msg.fileSize);
-    const icon = getFileIcon(msg.content);
-    div.innerHTML = `
-      <div class="message-row">
-        <div class="batch-checkbox-wrapper">
-          <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
-        </div>
-        <div class="message-content">
-          <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}" style="padding: 0;">
-            <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px;">
-              <div class="file-icon-large">${icon}</div>
-              <div class="file-details">
-                <span class="file-name">${escapeHtml(msg.content)}</span>
-                <span class="file-size">${sizeStr}</span>
-              </div>
-            </a>
+    const isVid = isVideo(msg.content);
+
+    if (isVid) {
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
           </div>
-          <div class="chat-meta">${metaHtml}</div>
+          <div class="message-content">
+            <div class="chat-bubble file-card video-card" data-filename="${encodeURIComponent(msg.content)}">
+              <div class="video-bubble">
+                <div class="video-play-overlay">
+                  <div class="video-play-btn">
+                    <svg viewBox="0 0 24 24" width="20" height="20" style="margin-left: 2px;">
+                      <path fill="currentColor" d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+                <div class="video-meta-bar">
+                  <span class="video-meta-name">${escapeHtml(msg.content)}</span>
+                  <span class="video-meta-size">${sizeStr}</span>
+                </div>
+              </div>
+            </div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      const icon = getFileIcon(msg.content);
+      div.innerHTML = `
+        <div class="message-row">
+          <div class="batch-checkbox-wrapper">
+            <input type="checkbox" class="batch-checkbox" value="file:${encodeURIComponent(msg.content)}">
+          </div>
+          <div class="message-content">
+            <div class="chat-bubble file-card" data-filename="${encodeURIComponent(msg.content)}">
+              <a href="${msg.fileUrl}" class="file-bubble" download style="display: flex; text-decoration: none; color: inherit; padding: 12px 16px; align-items: center; gap: 12px;">
+                <div class="file-icon-large">${icon}</div>
+                <div class="file-details">
+                  <span class="file-name">${escapeHtml(msg.content)}</span>
+                  <span class="file-size">${sizeStr}</span>
+                </div>
+              </a>
+            </div>
+            <div class="chat-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+    }
     
-    const fileCard = div.querySelector('.file-card');
-    const aLink = div.querySelector('a');
-    if (aLink) aLink.onclick = (e) => { if(isBatchMode()) e.preventDefault(); };
+    if (isVid) {
+      const videoBubble = div.querySelector('.video-bubble');
+      if (videoBubble) {
+        videoBubble.onclick = (e) => {
+          if (isBatchMode()) return;
+          e.stopPropagation();
+          showVideoLightbox(msg.fileUrl, msg.content);
+        };
+      }
+    } else {
+      const aLink = div.querySelector('a');
+      if (aLink) aLink.onclick = (e) => { if(isBatchMode()) e.preventDefault(); };
+    }
 
   } else if (msg.type === 'upload') {
     const icon = getFileIcon(msg.content);
@@ -291,4 +335,61 @@ export function renderChatHistory(chatMessages, history, context) {
   }
 
   return { domChanged };
+}
+
+export function showVideoLightbox(fileUrl, filename) {
+  const lightbox = document.createElement('div');
+  lightbox.className = 'video-lightbox';
+  lightbox.id = 'video-lightbox-modal';
+
+  lightbox.innerHTML = `
+    <div class="lightbox-header">
+      <span class="lightbox-title">${escapeHtml(filename)}</span>
+      <div class="lightbox-actions">
+        <a href="${fileUrl}" class="video-lightbox-btn download" download title="下载视频">
+          <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+        </a>
+        <button class="video-lightbox-btn close" title="关闭">✖</button>
+      </div>
+    </div>
+    <div class="lightbox-content">
+      <video controls autoplay playsinline>
+        <source src="${fileUrl}?inline=true" type="video/mp4">
+        您的浏览器不支持 video 标签播放该视频。
+      </video>
+    </div>
+  `;
+
+  document.body.appendChild(lightbox);
+
+  const video = lightbox.querySelector('video');
+
+  const closeLightbox = () => {
+    if (video) {
+      video.pause();
+      video.src = '';
+      video.load();
+    }
+    lightbox.remove();
+    document.removeEventListener('keydown', handleEsc);
+  };
+
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') {
+      closeLightbox();
+    }
+  };
+
+  document.addEventListener('keydown', handleEsc);
+
+  const closeBtn = lightbox.querySelector('.video-lightbox-btn.close');
+  if (closeBtn) {
+    closeBtn.onclick = closeLightbox;
+  }
+
+  lightbox.onclick = (e) => {
+    if (e.target === lightbox || e.target.classList.contains('lightbox-content')) {
+      closeLightbox();
+    }
+  };
 }
