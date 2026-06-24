@@ -77,6 +77,10 @@ router.post('/', (req, res) => {
       }
     }
 
+    // 凭证变更后重新生成缓存二维码
+    const { updateCachedQrCode } = require('../utils/qrcode');
+    updateCachedQrCode();
+
     res.json({ success: true, message: '设置已保存' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
