@@ -1,9 +1,17 @@
+jest.mock('child_process', () => ({
+  execFile: jest.fn((file, args, callback) => {
+    if (callback) callback(null);
+  })
+}));
+
 const request = require('supertest');
 const express = require('express');
+const { execFile } = require('child_process');
 const settingsRouter = require('../../routes/settings');
 const config = require('../../config');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const appdata = require('../../utils/appdata');
 
 const app = express();
@@ -100,5 +108,78 @@ describe('Settings API Security & Functionality', () => {
     // Check config update
     expect(config.port).toBe(9000);
     expect(config.maxFileSize).toBe(5368709120);
+  });
+
+  describe('POST /api/settings/open-folder', () => {
+    let platformSpy;
+
+    beforeEach(() => {
+      execFile.mockClear();
+      platformSpy = jest.spyOn(os, 'platform');
+    });
+
+    afterEach(() => {
+      platformSpy.mockRestore();
+    });
+
+    it('should block non-localhost IPs', async () => {
+      const res = await request(app)
+        .post('/api/settings/open-folder')
+        .set('x-simulated-ip', '192.168.1.100');
+      expect(res.status).toBe(403);
+    });
+
+    it('should open folder on win32 platform', async () => {
+      platformSpy.mockReturnValue('win32');
+      const res = await request(app)
+        .post('/api/settings/open-folder')
+        .set('x-simulated-ip', '127.0.0.1');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('共享文件夹已打开');
+      expect(execFile).toHaveBeenCalledWith('explorer.exe', [config.shareDir], expect.any(Function));
+    });
+
+    it('should open folder on darwin platform', async () => {
+      platformSpy.mockReturnValue('darwin');
+      const res = await request(app)
+        .post('/api/settings/open-folder')
+        .set('x-simulated-ip', '127.0.0.1');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(execFile).toHaveBeenCalledWith('open', [config.shareDir], expect.any(Function));
+    });
+
+    it('should open folder on other platforms (e.g. linux)', async () => {
+      platformSpy.mockReturnValue('linux');
+      const res = await request(app)
+        .post('/api/settings/open-folder')
+        .set('x-simulated-ip', '127.0.0.1');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(execFile).toHaveBeenCalledWith('xdg-open', [config.shareDir], expect.any(Function));
+    });
+
+    it('should create the folder if it does not exist', async () => {
+      const nonExistentDir = path.join(__dirname, 'non_existent_test_dir');
+      if (fs.existsSync(nonExistentDir)) {
+        fs.rmdirSync(nonExistentDir);
+      }
+      config.shareDir = nonExistentDir;
+      platformSpy.mockReturnValue('win32');
+
+      const res = await request(app)
+        .post('/api/settings/open-folder')
+        .set('x-simulated-ip', '127.0.0.1');
+
+      expect(res.status).toBe(200);
+      expect(fs.existsSync(nonExistentDir)).toBe(true);
+
+      // Clean up
+      fs.rmdirSync(nonExistentDir);
+    });
   });
 });
