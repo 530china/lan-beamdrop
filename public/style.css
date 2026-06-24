@@ -561,6 +561,214 @@ body {
   font-size: 2rem;
 }
 
+/* File Card (Whitespace Collapse & Padding Reset) */
+.chat-bubble.file-card {
+  padding: 0;
+  white-space: normal;
+}
+
+/* Video Card (Large Poster Layout) */
+.chat-bubble.file-card.video-card {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid var(--card-border);
+}
+
+.chat-bubble.file-card.video-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.video-bubble {
+  position: relative;
+  display: block;
+  width: 240px;
+  height: 150px;
+  text-decoration: none;
+  color: inherit;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  cursor: pointer;
+}
+
+.video-bubble .video-play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.video-bubble:hover .video-play-overlay {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.video-play-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1f2937;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.video-bubble:hover .video-play-btn {
+  transform: scale(1.1);
+  background: #ffffff;
+  color: var(--primary-color, #6366f1);
+}
+
+.video-meta-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 100%);
+  padding: 24px 12px 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  color: #ffffff;
+  font-size: 0.75rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.video-meta-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.video-meta-size {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* Video Lightbox Preview Modal */
+.video-lightbox {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2500;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: lightbox-fade-in 0.25s ease-out;
+}
+
+@keyframes lightbox-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lightbox-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%);
+  color: #ffffff;
+  z-index: 2510;
+}
+
+.lightbox-title {
+  font-size: 1rem;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+
+.lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.video-lightbox-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+  text-decoration: none;
+}
+
+.video-lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  transform: scale(1.05);
+}
+
+.video-lightbox-btn.close {
+  font-size: 1.25rem;
+}
+
+.video-lightbox-btn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.lightbox-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 24px 24px 24px;
+  box-sizing: border-box;
+}
+
+.lightbox-content video {
+  max-width: 90%;
+  max-height: 80%;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  background: #000;
+  outline: none;
+}
+
+@media (max-width: 768px) {
+  .lightbox-content video {
+    max-width: 100%;
+    max-height: 70%;
+  }
+}
+
 .file-details {
   display: flex;
   flex-direction: column;

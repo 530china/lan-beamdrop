@@ -322,13 +322,7 @@ router.get('/download/:filename', (req, res) => {
       return res.status(404).json({ success: false, error: '文件不存在' });
     }
 
-    const stat = fs.statSync(filePath);
-
-    // 设置下载头
-    res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
-
-    // 根据文件扩展名设置 MIME 类型
+    const ext = path.extname(filename).toLowerCase();
     const mimeTypes = {
       '.txt': 'text/plain',
       '.pdf': 'application/pdf',
@@ -338,6 +332,10 @@ router.get('/download/:filename', (req, res) => {
       '.gif': 'image/gif',
       '.mp3': 'audio/mpeg',
       '.mp4': 'video/mp4',
+      '.webm': 'video/webm',
+      '.ogg': 'video/ogg',
+      '.mov': 'video/quicktime',
+      '.mkv': 'video/x-matroska',
       '.zip': 'application/zip',
       '.doc': 'application/msword',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -348,8 +346,19 @@ router.get('/download/:filename', (req, res) => {
       '.apk': 'application/vnd.android.package-archive',
     };
 
-    const ext = path.extname(filename).toLowerCase();
     const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+    if (req.query.inline === 'true') {
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', 'inline');
+      return res.sendFile(resolvedPath);
+    }
+
+    const stat = fs.statSync(filePath);
+
+    // 设置下载头
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', contentType);
 
     // 流式传输
@@ -364,7 +373,9 @@ router.get('/download/:filename', (req, res) => {
     });
   } catch (err) {
     console.error('[文件] 下载处理失败:', err.message);
-    res.status(500).json({ success: false, error: '下载处理失败' });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: '下载处理失败' });
+    }
   }
 });
 
