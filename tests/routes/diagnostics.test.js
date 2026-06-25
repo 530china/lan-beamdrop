@@ -8,12 +8,17 @@ jest.mock('child_process', () => ({
   exec: jest.fn((cmd, opts, callback) => {
     // 兼容 chcp 65001 >nul && arp -a
     if (cmd.includes('arp -a')) {
-      const mockArpOutput = `
+      const mockArpOutput = require('os').platform() === 'win32'
+        ? `
 接口: 192.168.31.50 --- 0xb
   Internet 地址         物理地址              类型
   192.168.31.1          d4-35-38-24-3c-d5     动态
   192.168.31.100        a1-b2-c3-d4-e5-f6     动态
-      `;
+        `
+        : `
+? (192.168.31.1) at d4:35:38:24:3c:d5 [ethernet] on en0
+? (192.168.31.100) at a1:b2:c3:d4:e5:f6 [ethernet] on en0
+        `;
       if (callback) callback(null, mockArpOutput, '');
       return;
     }
