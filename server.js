@@ -126,7 +126,8 @@ app.use('/api/speedtest', speedtestRouter);
 
 // 网络诊断 API (仅限本机)
 app.use('/api/diagnostics', (req, res, next) => {
-  if (!isLocalHostReq(req)) {
+  // 只对 /arp 和 /ping 限制 Localhost，放行 /rtt-test 和 /auto 供手机端排障诊断
+  if ((req.path === '/arp' || req.path === '/ping') && !isLocalHostReq(req)) {
     return res.status(403).json({ success: false, error: 'Access Denied: Localhost only' });
   }
   next();

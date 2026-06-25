@@ -97,4 +97,151 @@ router.get('/ping', async (req, res) => {
   });
 });
 
+/**
+ * GET /api/diagnostics/rtt-test
+ * 极简接口，仅用于客户端高频多次请求测算网络延迟 (RTT) 和丢包
+ */
+router.get('/rtt-test', (req, res) => {
+  res.json({ success: true });
+});
+
+/**
+ * GET /api/diagnostics/auto
+ * 一键自动化综合网络诊断
+ */
+router.get('/auto', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const config = require('../config');
+
+    // 1. 获取客户端 IP 且规范化
+    let clientIp = req.socket.remoteAddress || req.ip || '';
+    if (clientIp.startsWith('::ffff:')) {
+      clientIp = clientIp.substring(7);
+    }
+    if (clientIp === '::1' || clientIp === '::') {
+      clientIp = '127.0.0.1';
+    }
+
+    // 2. 获取服务器网卡 IP 列表
+    const interfaces = os.networkInterfaces();
+    const serverIps = [];
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          serverIps.push(net.address);
+        }
+      }
+    }
+
+    // 3. 判断是否在同一局域网网段
+    const isLocalhost = clientIp === '127.0.0.1' || clientIp === 'localhost';
+    let isSameSubnet = false;
+    if (isLocalhost) {
+      isSameSubnet = true;
+    } else {
+      const cParts = clientIp.split('.');
+      if (cParts.length === 4) {
+        for (const sIp of serverIps) {
+          const sParts = sIp.split('.');
+          if (sParts.length !== 4) continue;
+
+          // 对常见的 C 类私有 IP (192.168.x.x)：严格要求前三位一致 (/24)
+          if (clientIp.startsWith('192.168.') && sIp.startsWith('192.168.')) {
+            if (cParts[2] === sParts[2]) {
+              isSameSubnet = true;
+              break;
+            }
+          }
+          // 对常见的 B 类私有 IP (172.16.x.x - 172.31.x.x)：要求前两位一致 (/16)
+          else if (clientIp.startsWith('172.') && sIp.startsWith('172.')) {
+            const c2 = parseInt(cParts[1], 10);
+            const s2 = parseInt(sParts[1], 10);
+            if (c2 >= 16 && c2 <= 31 && s2 >= 16 && s2 <= 31) {
+              if (cParts[0] === sParts[0] && cParts[1] === sParts[1]) {
+                isSameSubnet = true;
+                break;
+              }
+            }
+          }
+          // 对常见的 A 类私有 IP (10.x.x.x)：要求前两位一致 (/16)
+          else if (clientIp.startsWith('10.') && sIp.startsWith('10.')) {
+            if (cParts[0] === sParts[0] && cParts[1] === sParts[1]) {
+              isSameSubnet = true;
+              break;
+            }
+          }
+          // 兜底策略：如果都不是标准私有 IP 网段，比对前三段
+          else {
+            if (cParts.slice(0, 3).join('.') === sParts.slice(0, 3).join('.')) {
+              isSameSubnet = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 4. 服务器磁盘落盘写入吞吐量基准测试 (10MB)
+    const testFilePath = path.join(config.shareDir, `io_speedtest_${Date.now()}.tmp`);
+    const testData = Buffer.alloc(10 * 1024 * 1024); // 10MB
+    const t1 = Date.now();
+    let diskWriteSpeedMBs = 0;
+    let diskWriteTimeMs = 0;
+    let diskWriteError = null;
+    let fileHandle = null;
+
+    try {
+      fileHandle = await fs.promises.open(testFilePath, 'w');
+      await fileHandle.write(testData);
+      await fileHandle.sync(); // 强制刷入物理磁盘，避开操作系统内存写缓存干扰
+      const t2 = Date.now();
+      diskWriteTimeMs = t2 - t1;
+      diskWriteSpeedMBs = parseFloat(((10 * 1000) / Math.max(diskWriteTimeMs, 1)).toFixed(2));
+    } catch (err) {
+      diskWriteError = err.message;
+    } finally {
+      try {
+        if (fileHandle) {
+          await fileHandle.close();
+        }
+      } catch (closeErr) {}
+      try {
+        await fs.promises.unlink(testFilePath);
+      } catch (unlinkErr) {}
+    }
+
+    // 5. 反向 Ping 客户端连通性测试
+    let clientPingReachable = false;
+    let clientPingLog = '';
+    if (!isLocalhost && /^(\d{1,3}\.){3}\d{1,3}$/.test(clientIp)) {
+      const isWin = os.platform() === 'win32';
+      const pingCmd = isWin ? `chcp 65001 >nul && ping -n 1 -w 1000 ${clientIp}` : `ping -c 1 -W 1 ${clientIp}`;
+      const { error, stdout } = await execAsync(pingCmd, 2000);
+      clientPingLog = stdout ? stdout.trim() : '';
+      clientPingReachable = !error && !clientPingLog.includes('Unreachable') && !clientPingLog.includes('无法访问目标主机') && !clientPingLog.includes('100% packet loss') && !clientPingLog.includes('100% 丢失');
+    } else {
+      clientPingReachable = true; // Localhost 默认可连
+    }
+
+    res.json({
+      success: true,
+      clientIp,
+      serverIps,
+      isLocalhost,
+      isSameSubnet,
+      diskWriteSpeedMBs,
+      diskWriteTimeMs,
+      diskWriteError,
+      clientPingReachable,
+      clientPingLog,
+      serverPlatform: os.platform()
+    });
+  } catch (err) {
+    console.error('[网络诊断] 一键自动诊断发生异常:', err.message);
+    res.status(500).json({ success: false, error: '一键自动诊断服务异常' });
+  }
+});
+
 module.exports = router;

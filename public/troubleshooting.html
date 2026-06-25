@@ -146,23 +146,41 @@
           <li>点击确定保存。手机刷新网页，瞬间秒开！</li>
         </ol>
       </div>
-        </ol>
+    <h2 id="speed">第三步：为什么局域网传输慢？如何测速与诊断？</h2>
+    <p>如果您觉得文件传输很慢（比如只有几百 K），最快定位问题的办法是使用我们内建的<strong>「一键测速与智能诊断」</strong>功能：</p>
+    
+    <div class="solution" style="background-color: #ecfdf5; border-left: 4px solid #10b981; margin-bottom: 20px;">
+      <strong>🚀 推荐：使用一键网络诊断（多端支持）</strong><br>
+      在电脑端或手机端，点击屏幕右下角的 <strong>🚀 悬浮功能球 -> 测速与诊断</strong>，按下 <strong>“开始一键诊断”</strong>。系统将在 3 秒内全自动检测并告诉你答案：
+      <ul>
+        <li><strong>时延与稳定性检测</strong>：连续请求服务器并计算时延（RTT）及丢包率，判断信号是否微弱。</li>
+        <li><strong>路由路径（VPN）检测</strong>：比对客户端与服务端的网卡 IP，判定流量是否被 VPN/代理劫持绕路。</li>
+        <li><strong>协议并发安全检测</strong>：诊断浏览器在当前环境下是否限制了 TCP 最大并发数。</li>
+        <li><strong>服务端存储性能测试</strong>：服务端模拟落盘 10MB 文件，精准诊断是否是硬盘写入瓶颈。</li>
+        <li><strong>无线频段速率评估</strong>：结合物理网卡上行与下行测速，智能推测是否误连了 2.4G 拥堵信道。</li>
+      </ul>
+    </div>
+
+    <p>诊断结束后，系统会直接在下方亮起红黄绿指示灯，并给出大字版的<strong>“智能诊断结论与优化建议”</strong>。以下是测速慢背后的常见原理解释：</p>
+
+    <div class="alert alert-warning">
+      <div class="conclusion">原因一：流量被代理/VPN全局接管（最常见）</div>
+      <div class="solution">
+        <strong>原理：</strong> 电脑或手机开启了 Clash、V2Ray 等翻墙代理或 VPN，会导致局域网内的直连流量被强行劫持到外网服务器兜圈子再回来，速度瞬间暴跌到几百K。<br><br>
+        <strong>解决办法：</strong> <b>完全关闭</b>手机和电脑上的代理软件（系统全局代理/TUN模式），确保流量在物理局域网内直连。
       </div>
     </div>
 
-    <h2 id="speed">第三步：为什么局域网测速很慢？</h2>
-    <p>如果您在主页点击 <strong>🚀 测速</strong> 后发现速度不理想，请对照以下原因排查：</p>
-    
     <div class="alert alert-warning">
-      <div class="conclusion">嫌疑一：连接了 2.4G Wi-Fi（最常见）</div>
+      <div class="conclusion">原因二：连接了 2.4G Wi-Fi</div>
       <div class="solution">
-        <strong>原理：</strong> 2.4G 频段极其拥堵且理论上限低，实际测速通常只有 <code>2MB/s ~ 8MB/s</code>。而 5G 频段干扰少，可达 <code>30MB/s ~ 100MB/s</code>。<br><br>
+        <strong>原理：</strong> 2.4G 频段极其拥堵且理论上限低，实际测速通常只有 <code>2MB/s ~ 8MB/s</code>（在多端均连 Wi-Fi 时还会减半）。而 5G 频段干扰少，可达 <code>30MB/s ~ 100MB/s</code>。<br><br>
         <strong>解决办法：</strong> 确保手机和电脑都连接在路由器名称带有 <code>-5G</code> 的 Wi-Fi 上。如果离路由器太远，建议直接 <strong>让手机开启个人热点，电脑连接手机热点</strong>，速度会瞬间起飞！
       </div>
     </div>
 
     <div class="alert alert-warning">
-      <div class="conclusion">嫌疑二：Wi-Fi 半双工折损魔咒</div>
+      <div class="conclusion">原因三：Wi-Fi 半双工折损魔咒</div>
       <div class="solution">
         <strong>原理：</strong> Wi-Fi 就像对讲机，同一时刻只能发或收。如果您的 <strong>电脑和手机都连着同一个 Wi-Fi</strong>，一份文件要先发给路由器，路由器再发给电脑，导致带宽直接腰斩一半。<br><br>
         <strong>解决办法：</strong> 最快、最稳的终极形态是：<strong>电脑插着网线，手机连接路由器的 5G Wi-Fi</strong>。这样两者都能跑满独立通道。
@@ -170,10 +188,10 @@
     </div>
 
     <div class="alert alert-warning">
-      <div class="conclusion">嫌疑三：电脑硬盘写入瓶颈（仅影响真实传大文件）</div>
+      <div class="conclusion">原因四：电脑存储硬盘写入瓶颈（仅影响真实传大文件）</div>
       <div class="solution">
-        <strong>原理：</strong> 本工具自带的 <strong>🚀 测速功能</strong> 是纯网卡对传，不读写硬盘。但如果您测速有 80MB/s，真实传文件却只有 20MB/s，那就是电脑存储目录所在的硬盘太慢了。<br><br>
-        <strong>解决办法：</strong> 老旧的机械硬盘（HDD）写入速度很慢，且容易卡顿。请在软件右上角的“设置”里，把 <strong>文件存储目录</strong> 更改到固态硬盘（SSD）所在的盘符。
+        <strong>原理：</strong> 本工具自带的 <strong>🚀 测速功能</strong> 是纯网卡对传，不读写硬盘。但如果您测速有 80MB/s，真实传文件却只有 10MB/s，那就是电脑存储目录所在的硬盘太慢了。老旧的机械硬盘（HDD）写入速度很慢，且容易卡顿；或者杀毒软件在对落盘文件进行实时扫描拦截。<br><br>
+        <strong>解决办法：</strong> 请在网页右上角“设置”里，把 <strong>文件存储目录</strong> 更改为 SSD 固态硬盘分区（如 C 盘分区）的某个目录下，或暂时加入杀毒软件排除项。
       </div>
     </div>
 
