@@ -99,7 +99,7 @@
           </button>
           <button class="fab-menu-item" id="fab-menu-speedtest">
             <span class="fab-icon">🚀</span>
-            <span class="fab-label">测速与体检</span>
+            <span class="fab-label">测速与诊断</span>
           </button>
         </div>
         <button class="fab-main" id="fab-main" title="展开功能">
@@ -305,12 +305,12 @@
     </div>
   </div>
 
-  <!-- 局域网测速与体检 Modal -->
+  <!-- 局域网测速与诊断 Modal -->
   <div id="speedtest-modal" class="lightbox hidden" style="z-index: 4000;">
     <div class="lightbox-backdrop" id="speedtest-backdrop"></div>
     <div class="lightbox-content speedtest-content" style="max-width: 460px; width: 90%; background: rgba(25, 25, 35, 0.96); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.6); max-height: 82vh; display: flex; flex-direction: column; align-items: stretch; gap: 0; overflow: hidden;">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
-        <h2 style="margin: 0; font-size: 1.25rem; color: #fff;">🚀 网络测速与体检</h2>
+        <h2 style="margin: 0; font-size: 1.25rem; color: #fff;">🚀 网络测速与诊断</h2>
         <button id="btn-close-speedtest" class="btn-icon" style="opacity: 0.7;">✖</button>
       </div>
       <div class="speedtest-body" style="text-align: center; padding: 20px; overflow-y: auto; flex: 1;">
@@ -327,12 +327,12 @@
           </div>
         </div>
         
-        <button id="btn-start-speedtest" class="btn-scan-action" style="margin-bottom: 15px; width: 100%;">开始一键体检</button>
+        <button id="btn-start-speedtest" class="btn-scan-action" style="margin-bottom: 15px; width: 100%;">开始一键诊断</button>
         
-        <!-- 一键体检进度及指标面板 -->
+        <!-- 一键诊断进度及指标面板 -->
         <div id="speedtest-report-panel" class="hidden" style="text-align: left; margin: 15px 0; padding: 15px; background: rgba(255, 255, 255, 0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
           <div style="font-size: 0.9rem; font-weight: bold; color: #e5e7eb; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; display: flex; justify-content: space-between;">
-            <span>📋 智能网络体检指标</span>
+            <span>📋 智能网络诊断指标</span>
             <span id="speedtest-overall-status" style="color: #6b7280;">正在检测</span>
           </div>
           <div id="diag-item-rtt" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #d1d5db; margin-bottom: 8px;">
@@ -361,7 +361,7 @@
         </div>
 
         <!-- 底部大关闭按钮 -->
-        <button id="btn-close-speedtest-bottom" class="btn-scan-action" style="margin-top: 15px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; width: 100%;">关闭体检窗口</button>
+        <button id="btn-close-speedtest-bottom" class="btn-scan-action" style="margin-top: 15px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; width: 100%;">关闭诊断窗口</button>
       </div>
     </div>
   </div>

@@ -1623,7 +1623,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnStartSpeedtest) {
     btnStartSpeedtest.addEventListener('click', async () => {
       btnStartSpeedtest.disabled = true;
-      btnStartSpeedtest.textContent = '网络体检进行中...';
+      btnStartSpeedtest.textContent = '网络诊断进行中...';
       btnStartSpeedtest.style.opacity = '0.7';
       speedDownload.textContent = '0.0';
       speedUpload.textContent = '0.0';
@@ -1771,7 +1771,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // === 5. 终极智能诊断结论判定 ===
-      btnStartSpeedtest.textContent = '重新体检';
+      btnStartSpeedtest.textContent = '重新诊断';
       btnStartSpeedtest.disabled = false;
       btnStartSpeedtest.style.opacity = '1';
 
@@ -1829,9 +1829,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // 正常级判定
       else {
         if (isLocal) {
-          finalConclusion = '<strong style="color: #6ee7b7;">🟢 诊断：本地回环状态完美</strong><br>网络体检结果极佳。由于您在服务器本机访问，无任何网卡和物理信道折损。<br><br>💡 <b>友情提示：</b>如果您要测试真实的无线局域网环境，请用手机扫描主页二维码，在手机上运行此项体检！';
+          finalConclusion = '<strong style="color: #6ee7b7;">🟢 诊断：本地回环状态完美</strong><br>网络诊断结果极佳。由于您在服务器本机访问，无任何网卡和物理信道折损。<br><br>💡 <b>友情提示：</b>如果您要测试真实的无线局域网环境，请用手机扫描主页二维码，在手机上运行此项诊断！';
         } else {
-          finalConclusion = '<strong style="color: #6ee7b7;">🟢 诊断：局域网状态极佳</strong><br>体检通关！延迟、网段、磁盘性能均正常，且速度可观。您当前正处于顺畅的局域网高速传输通道中！';
+          finalConclusion = '<strong style="color: #6ee7b7;">🟢 诊断：局域网状态极佳</strong><br>诊断通关！延迟、网段、磁盘性能均正常，且速度可观。您当前正处于顺畅的局域网高速传输通道中！';
         }
       }
 
