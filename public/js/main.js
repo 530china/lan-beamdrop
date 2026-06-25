@@ -1195,6 +1195,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape' && qrcodeModal && !qrcodeModal.classList.contains('hidden')) {
       closeQrcode();
     }
+    if (e.key === 'Escape' && speedtestModal && !speedtestModal.classList.contains('hidden')) {
+      speedtestModal.classList.add('hidden');
+    }
   });
 
   function closeLightbox() {
@@ -1245,6 +1248,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnCloseSpeedtest) {
     btnCloseSpeedtest.addEventListener('click', () => {
+      speedtestModal.classList.add('hidden');
+    });
+  }
+
+  const speedtestBackdrop = document.getElementById('speedtest-backdrop');
+  if (speedtestBackdrop) {
+    speedtestBackdrop.addEventListener('click', () => {
       speedtestModal.classList.add('hidden');
     });
   }
