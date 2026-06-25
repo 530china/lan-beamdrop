@@ -1303,29 +1303,52 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runUploadTest(durationMs = 3000) {
     const startTime = performance.now();
     let bytesSent = 0;
+    const payload = new Uint8Array(2 * 1024 * 1024); // 2MB 数据包，与真实上传分片大小一致
+    const abortController = new AbortController();
     
-    const payload = new Uint8Array(2 * 1024 * 1024);
+    // 超时后自动中止所有进行中的上传请求
+    const timeoutId = setTimeout(() => abortController.abort(), durationMs);
+
+    const CONCURRENCY = 3; // 3通道并发，对齐实际上传并发数
     
-    while (performance.now() - startTime < durationMs) {
-      try {
-        await fetch('/api/speedtest/upload', {
-          method: 'POST',
-          body: payload,
-          headers: { 'Content-Type': 'application/octet-stream' }
-        });
-        bytesSent += payload.length;
-        
-        const elapsedSec = (performance.now() - startTime) / 1000;
-        const speed = (bytesSent / 1024 / 1024) / elapsedSec;
-        speedUpload.textContent = speed.toFixed(1);
-      } catch (err) {
-        console.error('Upload test error:', err);
-        break;
+    async function worker() {
+      while (performance.now() - startTime < durationMs && !abortController.signal.aborted) {
+        try {
+          const res = await fetch('/api/speedtest/upload', {
+            method: 'POST',
+            body: payload,
+            headers: { 'Content-Type': 'application/octet-stream' },
+            signal: abortController.signal
+          });
+          if (res.ok) {
+            bytesSent += payload.length;
+            const elapsedSec = (performance.now() - startTime) / 1000;
+            if (elapsedSec > 0.1) {
+              const speed = (bytesSent / 1024 / 1024) / elapsedSec;
+              speedUpload.textContent = speed.toFixed(1);
+            }
+          }
+        } catch (err) {
+          if (err.name === 'AbortError' || abortController.signal.aborted) {
+            break;
+          }
+          console.error('Upload test worker error:', err);
+          break;
+        }
       }
+    }
+
+    try {
+      // 并发启动 3 个 Workers，并发推流
+      await Promise.all(Array(CONCURRENCY).fill(null).map(() => worker()));
+    } catch (e) {
+      // 忽略超时引发的底层中止异常
+    } finally {
+      clearTimeout(timeoutId);
     }
     
     const finalElapsed = (performance.now() - startTime) / 1000;
-    return (bytesSent / 1024 / 1024) / finalElapsed;
+    return (bytesSent / 1024 / 1024) / (finalElapsed || 0.001);
   }
 
   // ==========================================
@@ -1595,8 +1618,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let lossCount = 0;
     for (let i = 0; i < 5; i++) {
       const t1 = performance.now();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 800); // 800ms 超时保护
       try {
-        const res = await fetch('/api/diagnostics/rtt-test');
+        const res = await fetch('/api/diagnostics/rtt-test', { signal: controller.signal });
         if (res.ok) {
           const t2 = performance.now();
           times.push(t2 - t1);
@@ -1605,6 +1630,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (e) {
         lossCount++;
+      } finally {
+        clearTimeout(timeoutId);
       }
       await new Promise(r => setTimeout(r, 50));
     }

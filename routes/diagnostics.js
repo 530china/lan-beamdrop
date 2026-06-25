@@ -190,18 +190,26 @@ router.get('/auto', async (req, res) => {
     let diskWriteSpeedMBs = 0;
     let diskWriteTimeMs = 0;
     let diskWriteError = null;
+    let fileHandle = null;
 
     try {
-      await fs.promises.writeFile(testFilePath, testData);
+      fileHandle = await fs.promises.open(testFilePath, 'w');
+      await fileHandle.write(testData);
+      await fileHandle.sync(); // 强制刷入物理磁盘，避开操作系统内存写缓存干扰
       const t2 = Date.now();
       diskWriteTimeMs = t2 - t1;
       diskWriteSpeedMBs = parseFloat(((10 * 1000) / Math.max(diskWriteTimeMs, 1)).toFixed(2));
-      await fs.promises.unlink(testFilePath);
     } catch (err) {
       diskWriteError = err.message;
+    } finally {
       try {
-        if (fs.existsSync(testFilePath)) await fs.promises.unlink(testFilePath);
-      } catch (e) {}
+        if (fileHandle) {
+          await fileHandle.close();
+        }
+      } catch (closeErr) {}
+      try {
+        await fs.promises.unlink(testFilePath);
+      } catch (unlinkErr) {}
     }
 
     // 5. 反向 Ping 客户端连通性测试
