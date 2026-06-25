@@ -99,7 +99,7 @@
           </button>
           <button class="fab-menu-item" id="fab-menu-speedtest">
             <span class="fab-icon">🚀</span>
-            <span class="fab-label">网络测速</span>
+            <span class="fab-label">测速与体检</span>
           </button>
         </div>
         <button class="fab-main" id="fab-main" title="展开功能">
@@ -305,29 +305,59 @@
     </div>
   </div>
 
-  <!-- 局域网测速 Modal -->
+  <!-- 局域网测速与体检 Modal -->
   <div id="speedtest-modal" class="lightbox hidden" style="z-index: 4000;">
     <div class="lightbox-backdrop" id="speedtest-backdrop"></div>
-    <div class="lightbox-content speedtest-content" style="max-width: 450px; width: 90%; background: rgba(25, 25, 35, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+    <div class="lightbox-content speedtest-content" style="max-width: 460px; width: 90%; background: rgba(25, 25, 35, 0.96); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.6); max-height: 90vh; overflow-y: auto;">
       <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <h2 style="margin: 0; font-size: 1.25rem; color: #fff;">🚀 局域网测速</h2>
+        <h2 style="margin: 0; font-size: 1.25rem; color: #fff;">🚀 网络测速与体检</h2>
         <button id="btn-close-speedtest" class="btn-icon" style="opacity: 0.7;">✖</button>
       </div>
       <div class="speedtest-body" style="text-align: center; padding: 20px;">
-        <div class="speedtest-gauges" style="display: flex; justify-content: space-around; margin-bottom: 30px;">
-          <div class="gauge" style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; width: 45%; border: 1px solid rgba(59, 130, 246, 0.3); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-            <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 8px;">下行 (Download)</div>
-            <div id="speed-download" style="font-size: 2.2rem; font-weight: bold; color: #60a5fa; font-family: monospace;">0.0</div>
+        <div class="speedtest-gauges" style="display: flex; justify-content: space-around; margin-bottom: 20px;">
+          <div class="gauge" style="background: rgba(255,255,255,0.03); padding: 15px 10px; border-radius: 12px; width: 45%; border: 1px solid rgba(59, 130, 246, 0.2); box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+            <div style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px;">下行 (Download)</div>
+            <div id="speed-download" style="font-size: 2.0rem; font-weight: bold; color: #60a5fa; font-family: monospace;">0.0</div>
             <div style="font-size: 0.8rem; color: #6b7280;">MB/s</div>
           </div>
-          <div class="gauge" style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; width: 45%; border: 1px solid rgba(139, 92, 246, 0.3); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-            <div style="font-size: 0.9rem; color: #9ca3af; margin-bottom: 8px;">上行 (Upload)</div>
-            <div id="speed-upload" style="font-size: 2.2rem; font-weight: bold; color: #a78bfa; font-family: monospace;">0.0</div>
+          <div class="gauge" style="background: rgba(255,255,255,0.03); padding: 15px 10px; border-radius: 12px; width: 45%; border: 1px solid rgba(139, 92, 246, 0.2); box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+            <div style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px;">上行 (Upload)</div>
+            <div id="speed-upload" style="font-size: 2.0rem; font-weight: bold; color: #a78bfa; font-family: monospace;">0.0</div>
             <div style="font-size: 0.8rem; color: #6b7280;">MB/s</div>
           </div>
         </div>
-        <button id="btn-start-speedtest" class="btn-scan-action" style="margin-bottom: 20px;">开始测速</button>
-        <div id="speedtest-conclusion" class="hidden" style="padding: 12px; border-radius: 8px; font-size: 0.9rem; text-align: left; line-height: 1.5; color: #fff;">
+        
+        <button id="btn-start-speedtest" class="btn-scan-action" style="margin-bottom: 15px; width: 100%;">开始一键体检</button>
+        
+        <!-- 一键体检进度及指标面板 -->
+        <div id="speedtest-report-panel" class="hidden" style="text-align: left; margin: 15px 0; padding: 15px; background: rgba(255, 255, 255, 0.02); border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);">
+          <div style="font-size: 0.9rem; font-weight: bold; color: #e5e7eb; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; display: flex; justify-content: space-between;">
+            <span>📋 智能网络体检指标</span>
+            <span id="speedtest-overall-status" style="color: #6b7280;">正在检测</span>
+          </div>
+          <div id="diag-item-rtt" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #d1d5db; margin-bottom: 8px;">
+            <span>📶 无线时延与信号稳定性</span>
+            <span class="diag-status" style="font-family: monospace; font-weight: bold; color: #9ca3af;">⏳ 等待中</span>
+          </div>
+          <div id="diag-item-vpn" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #d1d5db; margin-bottom: 8px;">
+            <span>🔀 网络路由路径 (VPN/绕路)</span>
+            <span class="diag-status" style="font-family: monospace; font-weight: bold; color: #9ca3af;">⏳ 等待中</span>
+          </div>
+          <div id="diag-item-secure" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #d1d5db; margin-bottom: 8px;">
+            <span>🔒 协议安全与并发通道</span>
+            <span class="diag-status" style="font-family: monospace; font-weight: bold; color: #9ca3af;">⏳ 等待中</span>
+          </div>
+          <div id="diag-item-disk" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #d1d5db; margin-bottom: 8px;">
+            <span>💾 服务器存储落盘性能</span>
+            <span class="diag-status" style="font-family: monospace; font-weight: bold; color: #9ca3af;">⏳ 等待中</span>
+          </div>
+          <div id="diag-item-channel" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #d1d5db;">
+            <span>⚡ 无线频段速率评估</span>
+            <span class="diag-status" style="font-family: monospace; font-weight: bold; color: #9ca3af;">⏳ 等待中</span>
+          </div>
+        </div>
+
+        <div id="speedtest-conclusion" class="hidden" style="padding: 15px; border-radius: 10px; font-size: 0.9rem; text-align: left; line-height: 1.5; color: #fff; border: 1px solid rgba(255,255,255,0.05); margin-top: 15px;">
         </div>
       </div>
     </div>

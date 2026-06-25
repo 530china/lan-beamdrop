@@ -1577,47 +1577,256 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  async function runRttTest() {
+    let times = [];
+    let lossCount = 0;
+    for (let i = 0; i < 5; i++) {
+      const t1 = performance.now();
+      try {
+        const res = await fetch('/api/diagnostics/rtt-test');
+        if (res.ok) {
+          const t2 = performance.now();
+          times.push(t2 - t1);
+        } else {
+          lossCount++;
+        }
+      } catch (e) {
+        lossCount++;
+      }
+      await new Promise(r => setTimeout(r, 50));
+    }
+    if (times.length === 0) {
+      return { avg: 999, jitter: 999, lossRate: 100 };
+    }
+    const sum = times.reduce((a, b) => a + b, 0);
+    const avg = sum / times.length;
+    const max = Math.max(...times);
+    const min = Math.min(...times);
+    const jitter = max - min;
+    const lossRate = (lossCount / 5) * 100;
+    return { avg, jitter, lossRate };
+  }
+
   if (btnStartSpeedtest) {
     btnStartSpeedtest.addEventListener('click', async () => {
       btnStartSpeedtest.disabled = true;
-      btnStartSpeedtest.textContent = '测试下行中...';
+      btnStartSpeedtest.textContent = '网络体检进行中...';
       btnStartSpeedtest.style.opacity = '0.7';
       speedDownload.textContent = '0.0';
       speedUpload.textContent = '0.0';
+
+      const reportPanel = document.getElementById('speedtest-report-panel');
+      const overallStatus = document.getElementById('speedtest-overall-status');
+
+      const itemRtt = document.querySelector('#diag-item-rtt .diag-status');
+      const itemVpn = document.querySelector('#diag-item-vpn .diag-status');
+      const itemSecure = document.querySelector('#diag-item-secure .diag-status');
+      const itemDisk = document.querySelector('#diag-item-disk .diag-status');
+      const itemChannel = document.querySelector('#diag-item-channel .diag-status');
+
+      // 重置状态
+      reportPanel.classList.remove('hidden');
       speedtestConclusion.classList.add('hidden');
 
-      // 跑下载
+      overallStatus.textContent = '正在检测';
+      overallStatus.style.color = '#fbbf24';
+
+      const resetStatus = (el) => {
+        el.textContent = '⏳ 检测中...';
+        el.style.color = '#9ca3af';
+      };
+      resetStatus(itemRtt);
+      resetStatus(itemVpn);
+      resetStatus(itemSecure);
+      resetStatus(itemDisk);
+      resetStatus(itemChannel);
+
+      // === 1. 测量网络时延与抖动 ===
+      const rttResult = await runRttTest();
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isLocal) {
+        itemRtt.textContent = '🟢 本地回环 (0ms)';
+        itemRtt.style.color = '#10b981';
+      } else {
+        if (rttResult.lossRate > 20) {
+          itemRtt.textContent = `🔴 丢包严重 (${rttResult.lossRate}%)`;
+          itemRtt.style.color = '#ef4444';
+        } else if (rttResult.avg > 25) {
+          itemRtt.textContent = `🟡 时延偏高 (${rttResult.avg.toFixed(1)}ms)`;
+          itemRtt.style.color = '#f59e0b';
+        } else {
+          itemRtt.textContent = `🟢 畅通 (${rttResult.avg.toFixed(1)}ms)`;
+          itemRtt.style.color = '#10b981';
+        }
+      }
+
+      // === 2. 测量并发通道安全 ===
+      const isSecure = window.isSecureContext !== false;
+      if (isLocal) {
+        itemSecure.textContent = '🟢 本地安全 (并发畅通)';
+        itemSecure.style.color = '#10b981';
+      } else {
+        if (isSecure) {
+          itemSecure.textContent = '🟢 安全通道 (并发畅通)';
+          itemSecure.style.color = '#10b981';
+        } else {
+          itemSecure.textContent = '🟡 HTTP协议 (多路排队限制)';
+          itemSecure.style.color = '#f59e0b';
+        }
+      }
+
+      // === 3. 获取后端诊断并评估 VPN/网段与磁盘 ===
+      itemVpn.textContent = '⏳ 分析路径...';
+      itemDisk.textContent = '⏳ 评估写吞吐...';
+
+      let autoData = null;
+      try {
+        const res = await fetch('/api/diagnostics/auto');
+        if (res.ok) {
+          autoData = await res.json();
+        }
+      } catch (e) {
+        console.error('Fetch auto diagnostics failed:', e);
+      }
+
+      if (autoData && autoData.success) {
+        // VPN/子网判定
+        if (autoData.isLocalhost) {
+          itemVpn.textContent = '🟢 本机连接';
+          itemVpn.style.color = '#10b981';
+        } else {
+          if (autoData.isSameSubnet) {
+            itemVpn.textContent = '🟢 局域网直连';
+            itemVpn.style.color = '#10b981';
+          } else {
+            itemVpn.textContent = '🔴 异网段绕路 (疑似开了代理)';
+            itemVpn.style.color = '#ef4444';
+          }
+        }
+
+        // 磁盘写入评估
+        if (autoData.diskWriteError) {
+          itemDisk.textContent = '🔴 评估失败 (无写权限/磁盘异常)';
+          itemDisk.style.color = '#ef4444';
+        } else {
+          const writeSpeed = autoData.diskWriteSpeedMBs;
+          if (writeSpeed < 12) {
+            itemDisk.textContent = `🔴 极慢 (${writeSpeed} MB/s)`;
+            itemDisk.style.color = '#ef4444';
+          } else if (writeSpeed < 30) {
+            itemDisk.textContent = `🟡 一般 (${writeSpeed} MB/s)`;
+            itemDisk.style.color = '#f59e0b';
+          } else {
+            itemDisk.textContent = `🟢 高速 (${writeSpeed} MB/s)`;
+            itemDisk.style.color = '#10b981';
+          }
+        }
+      } else {
+        itemVpn.textContent = '🟡 分析超时';
+        itemVpn.style.color = '#f59e0b';
+        itemDisk.textContent = '🟡 评估超时';
+        itemDisk.style.color = '#f59e0b';
+      }
+
+      // === 4. 进行实际网络吞吐量测速 ===
+      overallStatus.textContent = '正在测速...';
+      itemChannel.textContent = '⏳ 正在测速评估...';
+      itemChannel.style.color = '#9ca3af';
+
       const dlSpeed = await runDownloadTest();
       speedDownload.textContent = dlSpeed.toFixed(1);
 
-      // 跑上传
-      btnStartSpeedtest.textContent = '测试上行中...';
       const ulSpeed = await runUploadTest();
       speedUpload.textContent = ulSpeed.toFixed(1);
 
-      // 恢复 UI
-      btnStartSpeedtest.textContent = '重新测速';
+      const minSpeed = Math.min(dlSpeed, ulSpeed);
+
+      if (isLocal) {
+        itemChannel.textContent = '🟢 本地环回 (免网卡)';
+        itemChannel.style.color = '#10b981';
+      } else {
+        if (minSpeed < 3.5) {
+          itemChannel.textContent = `🔴 极慢 (${minSpeed.toFixed(1)} MB/s, 疑似2.4G)`;
+          itemChannel.style.color = '#ef4444';
+        } else if (minSpeed < 15) {
+          itemChannel.textContent = `🟡 一般 (${minSpeed.toFixed(1)} MB/s)`;
+          itemChannel.style.color = '#f59e0b';
+        } else {
+          itemChannel.textContent = `🟢 高速 (${minSpeed.toFixed(1)} MB/s)`;
+          itemChannel.style.color = '#10b981';
+        }
+      }
+
+      // === 5. 终极智能诊断结论判定 ===
+      btnStartSpeedtest.textContent = '重新体检';
       btnStartSpeedtest.disabled = false;
       btnStartSpeedtest.style.opacity = '1';
 
-      // 智能诊断结论
       speedtestConclusion.classList.remove('hidden');
-      const minSpeed = Math.min(dlSpeed, ulSpeed);
-      const helpLink = '<br><br><a href="/troubleshooting.html#speed" target="_blank" style="color: #93c5fd; text-decoration: underline;">👉 为什么速度跑不满？点击查看提速指南</a>';
-      
-      if (minSpeed < 10) {
-        speedtestConclusion.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-        speedtestConclusion.style.borderLeft = '4px solid #ef4444';
-        speedtestConclusion.innerHTML = '<strong style="color: #fca5a5;">🔴 警告：局域网极慢</strong><br>您的速度极低，可能是连接了 2.4G Wi-Fi 或信号极差。建议切换到 5G，或直接用手机开热点给电脑连！' + helpLink;
-      } else if (minSpeed < 30) {
-        speedtestConclusion.style.backgroundColor = 'rgba(245, 158, 11, 0.2)';
-        speedtestConclusion.style.borderLeft = '4px solid #f59e0b';
-        speedtestConclusion.innerHTML = '<strong style="color: #fcd34d;">🟡 提示：速度一般</strong><br>带宽满足日常传图和轻量级文件，但传输超大文件（如电影）可能会较耗时。' + helpLink;
-      } else {
-        speedtestConclusion.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
-        speedtestConclusion.style.borderLeft = '4px solid #10b981';
-        speedtestConclusion.innerHTML = '<strong style="color: #6ee7b7;">🟢 畅通无阻</strong><br>网络环境极佳！您处于局域网高速通道，可尽情跑满带宽传输超大文件！' + helpLink;
+
+      let finalConclusion = '';
+      let conclusionBg = 'rgba(16, 185, 129, 0.15)';
+      let conclusionBorder = '4px solid #10b981';
+      let statusText = '健康';
+      let overallColor = '#10b981';
+
+      const helpLink = '<br><br><a href="/troubleshooting.html" target="_blank" style="color: #93c5fd; text-decoration: underline;">👉 查看全端图文排障与提速指南</a>';
+
+      // 危险级判定：代理/VPN绕路
+      if (autoData && !autoData.isLocalhost && !autoData.isSameSubnet) {
+        statusText = '异常';
+        overallColor = '#ef4444';
+        conclusionBg = 'rgba(239, 68, 68, 0.15)';
+        conclusionBorder = '4px solid #ef4444';
+        finalConclusion = '<strong style="color: #fca5a5;">🔴 诊断：检测到代理中转 (VPN) 绕路</strong><br>客户端与服务器 IP 网段不匹配。这极大可能是您的电脑或手机开启了<b>翻墙软件、VPN 或代理</b>。局域网流量被劫持到了外网中转，从而慢如蜗牛。<br><br><b>💡 解决步骤：</b><br>1. 请<b>完全关闭</b>电脑和手机上的代理软件（如 Clash、V2Ray 等网络全局代理）。<br>2. 确保两端设备连接在同一个 Wi-Fi 网络下。' + helpLink;
       }
+      // 危险级判定：物理网卡单向隔离/防火墙
+      else if (autoData && !autoData.isLocalhost && !autoData.clientPingReachable && rttResult.lossRate > 40) {
+        statusText = '异常';
+        overallColor = '#ef4444';
+        conclusionBg = 'rgba(239, 68, 68, 0.15)';
+        conclusionBorder = '4px solid #ef4444';
+        finalConclusion = '<strong style="color: #fca5a5;">🔴 诊断：物理信道阻断 (AP隔离/防火墙)</strong><br>服务端反向 Ping 客户端失败，且网络丢包极高。这说明路由器开启了 <b>AP 隔离/访客网络限制</b>，或者电脑端的 <b>Windows 防火墙</b> 拦截了本应用的出站连接。<br><br><b>💡 解决步骤：</b><br>1. 按 Win 键搜索“Windows 防火墙”，允许本程序通过 Defender 防火墙（务必勾选专用和公用）。<br>2. 若在公司或公共场所 Wi-Fi，请直接<b>用手机开启个人热点，电脑连接手机热点</b>传输，即可彻底绕过路由器限制。' + helpLink;
+      }
+      // 警告级判定：2.4G Wi-Fi / 信号干扰
+      else if (!isLocal && (minSpeed < 3.5 || rttResult.avg > 30)) {
+        statusText = '警告';
+        overallColor = '#f59e0b';
+        conclusionBg = 'rgba(245, 158, 11, 0.15)';
+        conclusionBorder = '4px solid #f59e0b';
+        const detail = minSpeed < 3.5 ? '传输速度极低（仅几百 K 到几兆）' : '时延明显偏高';
+        finalConclusion = `<strong style="color: #fcd34d;">🟡 诊断：疑似连入了 2.4GHz 拥堵频段</strong><br>当前${detail}。无线网络可能工作在 2.4G 频段，该频段干扰极多且为半双工传输，导致带宽被砍掉大半。<br><br><b>💡 解决步骤：</b><br>1. 确保手机和电脑连在同一个 <b>5GHz 频段</b> 的 Wi-Fi 下（通常 Wi-Fi 名字后面带 -5G）。<br>2. <b>终极提速：</b>电脑插网线，手机连 5G Wi-Fi；或者直接用手机开个人热点，电脑连热点。` + helpLink;
+      }
+      // 警告级判定：服务器磁盘写入瓶颈
+      else if (autoData && autoData.diskWriteSpeedMBs < 12) {
+        statusText = '警告';
+        overallColor = '#f59e0b';
+        conclusionBg = 'rgba(245, 158, 11, 0.15)';
+        conclusionBorder = '4px solid #f59e0b';
+        finalConclusion = `<strong style="color: #fcd34d;">🟡 诊断：服务器存储路径写入受阻</strong><br>当前网络测速完美，但服务器磁盘写入速度仅为 <b>${autoData.diskWriteSpeedMBs} MB/s</b>。这说明文件在保存落盘时遇到了卡顿，原因可能是共享文件夹在慢速机械硬盘、外接 USB 优盘，或受杀毒软件实时磁盘扫描干扰。<br><br><b>💡 解决步骤：</b><br>1. 在网页右上角“设置⚙️”中，把<b>共享文件存储目录</b>更改为 SSD 固态硬盘分区（如 C 盘的某个目录）。<br>2. 暂时在 Windows Defender 中放行或加入排除项。` + helpLink;
+      }
+      // 警告级判定：不安全上下文限制
+      else if (!isLocal && !isSecure) {
+        statusText = '警告';
+        overallColor = '#f59e0b';
+        conclusionBg = 'rgba(245, 158, 11, 0.1)';
+        conclusionBorder = '4px solid #f59e0b';
+        finalConclusion = '<strong style="color: #fcd34d;">🟡 诊断：非安全 HTTP 访问限制</strong><br>您目前使用的是纯 HTTP IP 地址访问，浏览器判定为不安全环境，会强制限制 TCP 最大并发请求。这会导致多文件同时上传时出现排队慢。<br><br><b>💡 解决步骤：</b><br>如果速度能接受，可直接忽略；如果想跑满极致速度，请尽量在主机端（localhost）上传，或后续部署局域网 SSL 证书。' + helpLink;
+      }
+      // 正常级判定
+      else {
+        if (isLocal) {
+          finalConclusion = '<strong style="color: #6ee7b7;">🟢 诊断：本地回环状态完美</strong><br>网络体检结果极佳。由于您在服务器本机访问，无任何网卡和物理信道折损。<br><br>💡 <b>友情提示：</b>如果您要测试真实的无线局域网环境，请用手机扫描主页二维码，在手机上运行此项体检！';
+        } else {
+          finalConclusion = '<strong style="color: #6ee7b7;">🟢 诊断：局域网状态极佳</strong><br>体检通关！延迟、网段、磁盘性能均正常，且速度可观。您当前正处于顺畅的局域网高速传输通道中！';
+        }
+      }
+
+      overallStatus.textContent = statusText;
+      overallStatus.style.color = overallColor;
+      speedtestConclusion.style.backgroundColor = conclusionBg;
+      speedtestConclusion.style.borderLeft = conclusionBorder;
+      speedtestConclusion.innerHTML = finalConclusion;
     });
   }
 });
