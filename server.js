@@ -91,8 +91,8 @@ app.get('/api/info', async (req, res) => {
     isLocalHost: isLocalHost,
     maxFileSize: config.maxFileSize,
     accessPassword: isLocalHost ? (config.accessPassword || '') : '',
-    qrCodeDataUrl: global.CACHED_QR_CODE ? `data:image/svg+xml;utf8,${encodeURIComponent(global.CACHED_QR_CODE)}` : '',
-    connectionUrl: global.CACHED_QR_URL || `http://${ip}:${config.port}`,
+    qrCodeDataUrl: isLocalHost && global.CACHED_QR_CODE ? `data:image/svg+xml;utf8,${encodeURIComponent(global.CACHED_QR_CODE)}` : '',
+    connectionUrl: isLocalHost ? (global.CACHED_QR_URL || `http://${ip}:${config.port}`) : '',
   });
 });
 

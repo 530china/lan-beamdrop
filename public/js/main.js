@@ -294,9 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCopyQrcodeUrl.addEventListener('click', () => {
       const url = qrcodeUrlInput ? qrcodeUrlInput.value : '';
       if (!url) return;
-      navigator.clipboard.writeText(url)
-        .then(() => showToast('网址已复制', 'success'))
-        .catch(() => showToast('复制失败', 'error'));
+      doCopy(encodeURIComponent(url), btnCopyQrcodeUrl);
     });
   }
 
@@ -1193,6 +1191,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'ArrowRight') nextGalleryImage();
       if (e.key === 'ArrowLeft') prevGalleryImage();
       if (e.key === 'Escape') closeLightbox();
+    }
+    if (e.key === 'Escape' && qrcodeModal && !qrcodeModal.classList.contains('hidden')) {
+      closeQrcode();
     }
   });
 
