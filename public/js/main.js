@@ -1259,6 +1259,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const btnCloseSpeedtestBottom = document.getElementById('btn-close-speedtest-bottom');
+  if (btnCloseSpeedtestBottom) {
+    btnCloseSpeedtestBottom.addEventListener('click', () => {
+      speedtestModal.classList.add('hidden');
+    });
+  }
+
   async function runDownloadTest() {
     const startTime = performance.now();
     let bytesReceived = 0;

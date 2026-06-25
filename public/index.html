@@ -308,12 +308,12 @@
   <!-- 局域网测速与体检 Modal -->
   <div id="speedtest-modal" class="lightbox hidden" style="z-index: 4000;">
     <div class="lightbox-backdrop" id="speedtest-backdrop"></div>
-    <div class="lightbox-content speedtest-content" style="max-width: 460px; width: 90%; background: rgba(25, 25, 35, 0.96); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.6); max-height: 90vh; overflow-y: auto;">
-      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+    <div class="lightbox-content speedtest-content" style="max-width: 460px; width: 90%; background: rgba(25, 25, 35, 0.96); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 0; box-shadow: 0 20px 50px rgba(0,0,0,0.6); max-height: 82vh; display: flex; flex-direction: column; align-items: stretch; gap: 0; overflow: hidden;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;">
         <h2 style="margin: 0; font-size: 1.25rem; color: #fff;">🚀 网络测速与体检</h2>
         <button id="btn-close-speedtest" class="btn-icon" style="opacity: 0.7;">✖</button>
       </div>
-      <div class="speedtest-body" style="text-align: center; padding: 20px;">
+      <div class="speedtest-body" style="text-align: center; padding: 20px; overflow-y: auto; flex: 1;">
         <div class="speedtest-gauges" style="display: flex; justify-content: space-around; margin-bottom: 20px;">
           <div class="gauge" style="background: rgba(255,255,255,0.03); padding: 15px 10px; border-radius: 12px; width: 45%; border: 1px solid rgba(59, 130, 246, 0.2); box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
             <div style="font-size: 0.85rem; color: #9ca3af; margin-bottom: 6px;">下行 (Download)</div>
@@ -359,6 +359,9 @@
 
         <div id="speedtest-conclusion" class="hidden" style="padding: 15px; border-radius: 10px; font-size: 0.9rem; text-align: left; line-height: 1.5; color: #fff; border: 1px solid rgba(255,255,255,0.05); margin-top: 15px;">
         </div>
+
+        <!-- 底部大关闭按钮 -->
+        <button id="btn-close-speedtest-bottom" class="btn-scan-action" style="margin-top: 15px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; width: 100%;">关闭体检窗口</button>
       </div>
     </div>
   </div>
