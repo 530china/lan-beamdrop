@@ -42,6 +42,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Settings
   const btnSettings = document.getElementById('btn-settings');
   const btnOpenFolder = document.getElementById('btn-open-folder');
+
+  // QR Code Modal
+  const btnConnectPhone = document.getElementById('btn-connect-phone');
+  const qrcodeModal = document.getElementById('qrcode-modal');
+  const btnCloseQrcode = document.getElementById('btn-close-qrcode');
+  const qrcodeBackdrop = document.getElementById('qrcode-backdrop');
+  const qrcodeImg = document.getElementById('qrcode-img');
+  const qrcodeUrlInput = document.getElementById('qrcode-url-input');
+  const btnCopyQrcodeUrl = document.getElementById('btn-copy-qrcode-url');
+  const qrcodePinArea = document.getElementById('qrcode-pin-area');
+  const qrcodePinCode = document.getElementById('qrcode-pin-code');
   const settingsModal = document.getElementById('settings-modal');
   const settingsBackdrop = document.getElementById('settings-backdrop');
   const btnSaveSettings = document.getElementById('btn-save-settings');
@@ -156,6 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.isLocalHost) {
           btnSettings.classList.remove('hidden');
           if (btnOpenFolder) btnOpenFolder.classList.remove('hidden');
+          if (btnConnectPhone) btnConnectPhone.classList.remove('hidden');
+          window._qrData = {
+            qrCodeDataUrl: data.qrCodeDataUrl || '',
+            connectionUrl: data.connectionUrl || data.url || '',
+            pin: data.accessPassword || ''
+          };
           if (inputShareDir) inputShareDir.value = data.shareDir || '';
           if (inputAccessPassword) inputAccessPassword.value = data.accessPassword || '';
           
@@ -250,6 +267,36 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         showToast('网络错误', 'error');
       }
+    });
+  }
+
+  // QR Code Modal handlers
+  if (btnConnectPhone) {
+    btnConnectPhone.addEventListener('click', () => {
+      const qr = window._qrData || {};
+      if (qrcodeImg && qr.qrCodeDataUrl) qrcodeImg.src = qr.qrCodeDataUrl;
+      if (qrcodeUrlInput) qrcodeUrlInput.value = qr.connectionUrl || '';
+      if (qr.pin) {
+        if (qrcodePinArea) qrcodePinArea.style.display = 'block';
+        if (qrcodePinCode) qrcodePinCode.textContent = qr.pin;
+      } else {
+        if (qrcodePinArea) qrcodePinArea.style.display = 'none';
+      }
+      if (qrcodeModal) qrcodeModal.classList.remove('hidden');
+    });
+  }
+
+  const closeQrcode = () => { if (qrcodeModal) qrcodeModal.classList.add('hidden'); };
+  if (btnCloseQrcode) btnCloseQrcode.addEventListener('click', closeQrcode);
+  if (qrcodeBackdrop) qrcodeBackdrop.addEventListener('click', closeQrcode);
+
+  if (btnCopyQrcodeUrl) {
+    btnCopyQrcodeUrl.addEventListener('click', () => {
+      const url = qrcodeUrlInput ? qrcodeUrlInput.value : '';
+      if (!url) return;
+      navigator.clipboard.writeText(url)
+        .then(() => showToast('网址已复制', 'success'))
+        .catch(() => showToast('复制失败', 'error'));
     });
   }
 
