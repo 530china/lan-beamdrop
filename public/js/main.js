@@ -1773,10 +1773,10 @@ document.addEventListener('DOMContentLoaded', () => {
       itemChannel.textContent = '⏳ 正在测速评估...';
       itemChannel.style.color = '#9ca3af';
 
-      const dlSpeed = await runDownloadTest(1500);
+      const dlSpeed = await runDownloadTest(3000);
       speedDownload.textContent = dlSpeed.toFixed(1);
 
-      const ulSpeed = await runUploadTest(1500);
+      const ulSpeed = await runUploadTest(3000);
       speedUpload.textContent = ulSpeed.toFixed(1);
 
       const minSpeed = Math.min(dlSpeed, ulSpeed);
