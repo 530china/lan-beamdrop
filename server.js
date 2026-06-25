@@ -14,6 +14,7 @@ getSettings();
 const { getPrimaryIP, getLocalIPs, isLocalHostReq } = require('./utils/network');
 const { startMdns } = require('./utils/mdns');
 const { checkUpdate } = require('./utils/update');
+const { updateCachedQrCode } = require('./utils/qrcode');
 const { initWebSocketServer } = require('./utils/websocket');
 const filesRouter = require('./routes/files');
 const clipboardRouter = require('./routes/clipboard');
@@ -89,7 +90,9 @@ app.get('/api/info', async (req, res) => {
     url: `http://${ip}:${config.port}`,
     isLocalHost: isLocalHost,
     maxFileSize: config.maxFileSize,
-    accessPassword: isLocalHost ? (config.accessPassword || '') : ''
+    accessPassword: isLocalHost ? (config.accessPassword || '') : '',
+    qrCodeDataUrl: isLocalHost && global.CACHED_QR_CODE ? `data:image/svg+xml;utf8,${encodeURIComponent(global.CACHED_QR_CODE)}` : '',
+    connectionUrl: isLocalHost ? (global.CACHED_QR_URL || `http://${ip}:${config.port}`) : '',
   });
 });
 
@@ -194,6 +197,9 @@ const server = app.listen(config.port, '0.0.0.0', () => {
   } catch (err) {
     console.log(`📱 请用手机浏览器打开: ${displayUrl}`);
   }
+
+  // 缓存 SVG 二维码供 /api/info 使用
+  updateCachedQrCode();
 
   console.log('');
   console.log('所有局域网 IP:');

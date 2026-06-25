@@ -1870,3 +1870,114 @@ body.batch-mode .batch-checkbox-wrapper {
 .fab-menu-item:hover {
   background: rgba(255,255,255,0.2);
 }
+
+/* ===== QR Code Connection Modal ===== */
+.qrcode-modal-content {
+  max-width: 400px;
+  width: 90%;
+  background: rgba(25, 25, 35, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  position: relative;
+  z-index: 1;
+}
+
+.qrcode-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.qrcode-modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #fff;
+}
+
+.qrcode-modal-body {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.qrcode-box {
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.qrcode-box img {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.qrcode-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.qrcode-url-section {
+  width: 100%;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding-top: 16px;
+  text-align: left;
+}
+
+.qrcode-url-section label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.qrcode-url-section input {
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.qrcode-pin-section {
+  width: 100%;
+  text-align: left;
+}
+
+.qrcode-pin-section label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.qrcode-pin-value {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #a78bfa;
+  font-family: monospace;
+  letter-spacing: 2px;
+}
+
+.qrcode-pin-note {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+.qrcode-troubleshoot {
+  font-size: 0.8rem;
+  color: #888;
+  text-align: left;
+  width: 100%;
+  line-height: 1.4;
+  background: rgba(255,255,255,0.02);
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.05);
+}

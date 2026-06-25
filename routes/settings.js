@@ -77,6 +77,10 @@ router.post('/', (req, res) => {
       }
     }
 
+    // 凭证变更后重新生成缓存二维码
+    const { updateCachedQrCode } = require('../utils/qrcode');
+    updateCachedQrCode();
+
     res.json({ success: true, message: '设置已保存' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -96,7 +100,8 @@ router.post('/open-folder', (req, res) => {
     const platform = os.platform();
     if (platform === 'win32') {
       execFile('explorer.exe', [folderPath], (err) => {
-        if (err) console.error('[设置] 无法打开物理文件夹:', err);
+        // explorer.exe 即使成功打开也会返回退出码 1，属于已知行为，忽略之
+        if (err && err.code !== 1) console.error('[设置] 无法打开物理文件夹:', err);
       });
     } else if (platform === 'darwin') {
       execFile('open', [folderPath], (err) => {
