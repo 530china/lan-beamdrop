@@ -1266,13 +1266,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function runDownloadTest() {
+  async function runDownloadTest(durationMs = 3000) {
     const startTime = performance.now();
     let bytesReceived = 0;
     const controller = new AbortController();
     
-    // 强制 3 秒后中断
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), durationMs);
 
     try {
       const response = await fetch('/api/speedtest/download', { signal: controller.signal });
@@ -1283,7 +1282,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (done) break;
         bytesReceived += value.length;
         
-        // 每 0.1 秒刷新一次 UI 以免卡死
         const elapsedSec = (performance.now() - startTime) / 1000;
         if (elapsedSec > 0.1) {
           const speed = (bytesReceived / 1024 / 1024) / elapsedSec;
@@ -1302,15 +1300,13 @@ document.addEventListener('DOMContentLoaded', () => {
     return (bytesReceived / 1024 / 1024) / finalElapsed;
   }
 
-  async function runUploadTest() {
+  async function runUploadTest(durationMs = 3000) {
     const startTime = performance.now();
     let bytesSent = 0;
-    const testDuration = 3000; // 3 秒
     
-    // 生成 2MB 的垃圾内存数据
     const payload = new Uint8Array(2 * 1024 * 1024);
     
-    while (performance.now() - startTime < testDuration) {
+    while (performance.now() - startTime < durationMs) {
       try {
         await fetch('/api/speedtest/upload', {
           method: 'POST',
@@ -1750,10 +1746,10 @@ document.addEventListener('DOMContentLoaded', () => {
       itemChannel.textContent = '⏳ 正在测速评估...';
       itemChannel.style.color = '#9ca3af';
 
-      const dlSpeed = await runDownloadTest();
+      const dlSpeed = await runDownloadTest(1500);
       speedDownload.textContent = dlSpeed.toFixed(1);
 
-      const ulSpeed = await runUploadTest();
+      const ulSpeed = await runUploadTest(1500);
       speedUpload.textContent = ulSpeed.toFixed(1);
 
       const minSpeed = Math.min(dlSpeed, ulSpeed);

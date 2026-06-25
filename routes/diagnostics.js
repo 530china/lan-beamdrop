@@ -141,12 +141,44 @@ router.get('/auto', async (req, res) => {
     if (isLocalhost) {
       isSameSubnet = true;
     } else {
-      const clientSubnet = clientIp.split('.').slice(0, 3).join('.');
-      for (const sIp of serverIps) {
-        const serverSubnet = sIp.split('.').slice(0, 3).join('.');
-        if (clientSubnet === serverSubnet) {
-          isSameSubnet = true;
-          break;
+      const cParts = clientIp.split('.');
+      if (cParts.length === 4) {
+        for (const sIp of serverIps) {
+          const sParts = sIp.split('.');
+          if (sParts.length !== 4) continue;
+
+          // 对常见的 C 类私有 IP (192.168.x.x)：严格要求前三位一致 (/24)
+          if (clientIp.startsWith('192.168.') && sIp.startsWith('192.168.')) {
+            if (cParts[2] === sParts[2]) {
+              isSameSubnet = true;
+              break;
+            }
+          }
+          // 对常见的 B 类私有 IP (172.16.x.x - 172.31.x.x)：要求前两位一致 (/16)
+          else if (clientIp.startsWith('172.') && sIp.startsWith('172.')) {
+            const c2 = parseInt(cParts[1], 10);
+            const s2 = parseInt(sParts[1], 10);
+            if (c2 >= 16 && c2 <= 31 && s2 >= 16 && s2 <= 31) {
+              if (cParts[0] === sParts[0] && cParts[1] === sParts[1]) {
+                isSameSubnet = true;
+                break;
+              }
+            }
+          }
+          // 对常见的 A 类私有 IP (10.x.x.x)：要求前两位一致 (/16)
+          else if (clientIp.startsWith('10.') && sIp.startsWith('10.')) {
+            if (cParts[0] === sParts[0] && cParts[1] === sParts[1]) {
+              isSameSubnet = true;
+              break;
+            }
+          }
+          // 兜底策略：如果都不是标准私有 IP 网段，比对前三段
+          else {
+            if (cParts.slice(0, 3).join('.') === sParts.slice(0, 3).join('.')) {
+              isSameSubnet = true;
+              break;
+            }
+          }
         }
       }
     }
