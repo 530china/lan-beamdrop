@@ -72,6 +72,24 @@ jest.mock('fs', () => {
         mtime: new Date()
       };
     }),
+    stat: jest.fn((p, options, cb) => {
+      const callback = typeof options === 'function' ? options : cb;
+      if (!mockMemoryFs[p]) {
+        const err = new Error(`ENOENT: no such file or directory, stat '${p}'`);
+        err.code = 'ENOENT';
+        return callback(err);
+      }
+      const stats = Object.create(originalFs.Stats.prototype);
+      Object.assign(stats, {
+        size: mockMemoryFs[p].content ? mockMemoryFs[p].content.length : 0,
+        mtime: new Date(),
+        ctime: new Date(),
+        atime: new Date(),
+      });
+      stats.isDirectory = () => mockMemoryFs[p].type === 'dir';
+      stats.isFile = () => mockMemoryFs[p].type === 'file';
+      callback(null, stats);
+    }),
     unlinkSync: jest.fn((p) => {
       if (p.includes('locked_file')) {
         const err = new Error(`EACCES: permission denied, unlink '${p}'`);
@@ -200,6 +218,11 @@ describe('Files API Routes (Mocked FS)', () => {
     mockMemoryFs[targetFile] = { type: 'file', content: Buffer.from('download content') };
 
     const response = await request(app).get('/api/files/download/download_test.txt');
+    if (response.status !== 200) {
+      console.log('RESPONSE STATUS:', response.status);
+      console.log('RESPONSE BODY:', response.body);
+      console.log('RESPONSE TEXT:', response.text);
+    }
     expect(response.status).toBe(200);
     expect(response.text).toBe('download content');
   });

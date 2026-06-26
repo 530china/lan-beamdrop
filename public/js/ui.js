@@ -4,7 +4,7 @@ export function getFileIcon(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   const icons = {
     'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
-    'mp4': '🎬', 'mov': '🎬', 'avi': '🎬', 'mkv': '🎬',
+    'mp4': '🎬', 'mov': '🎬', 'avi': '🎬', 'mkv': '🎬', 'webm': '🎬', 'ogg': '🎬',
     'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
     'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
     'pdf': '📄', 'doc': '📝', 'docx': '📝', 'txt': '📝', 'md': '📝',
@@ -354,7 +354,7 @@ export function showVideoLightbox(fileUrl, filename) {
     </div>
     <div class="lightbox-content">
       <video controls autoplay playsinline>
-        <source src="${fileUrl}?inline=true" type="video/mp4">
+        <source src="${fileUrl}?inline=true">
         您的浏览器不支持 video 标签播放该视频。
       </video>
     </div>

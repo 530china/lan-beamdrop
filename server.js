@@ -217,9 +217,7 @@ const server = app.listen(config.port, '0.0.0.0', () => {
 const { broadcastUpdate } = require('./utils/websocket');
 initWebSocketServer(server);
 
-// 启动系统剪切板监控
-const { startClipboardMonitor } = require('./utils/clipboard');
-startClipboardMonitor(broadcastUpdate);
+
 
 // 优雅退出
 process.on('SIGINT', () => {
