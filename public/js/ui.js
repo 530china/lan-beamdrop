@@ -4,7 +4,7 @@ export function getFileIcon(filename) {
   const ext = filename.split('.').pop().toLowerCase();
   const icons = {
     'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'svg': '🖼️', 'webp': '🖼️',
-    'mp4': '🎬', 'mov': '🎬', 'avi': '🎬', 'mkv': '🎬',
+    'mp4': '🎬', 'mov': '🎬', 'avi': '🎬', 'mkv': '🎬', 'webm': '🎬', 'ogg': '🎬',
     'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
     'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
     'pdf': '📄', 'doc': '📝', 'docx': '📝', 'txt': '📝', 'md': '📝',
