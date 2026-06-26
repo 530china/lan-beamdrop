@@ -1,6 +1,7 @@
 import { formatBytes, escapeHtml, showToast } from './utils.js';
 import { apiConfig, fetchFiles, fetchClipboard, deleteFile, uploadFileChunked } from './api.js';
 import { renderChatHistory, doCopy } from './ui.js';
+import { ConcurrencyQueue } from './queue.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
@@ -676,6 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let renderedMessageIds = new Set();
   const uploadingFiles = new Map(); // uploadId -> {id, name, progress, timestamp}
   const activeXhrs = new Map(); // uploadId -> XMLHttpRequest();
+  const uploadQueue = new ConcurrencyQueue(2);
   let lastMessagesKey = '';
   
   function scrollToBottom(smooth = false) {
@@ -827,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             id: up.id,
             type: 'upload',
             content: up.name,
-            fileSize: '上传中...',
+            fileSize: up.status === 'waiting' ? '排队中...' : '上传中...',
             speed: up.speed,
             clientId: myClientId,
             deviceName: myDeviceName,
@@ -901,6 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
             activeXhrs.get(id).abort();
             activeXhrs.delete(id);
           }
+          uploadQueue.cancelTask(id);
           uploadingFiles.delete(id);
           fetchUnifiedMessages();
         },
@@ -918,10 +921,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sanitize filename to avoid spaces/special characters breaking DOM IDs
     const safeName = file.name.replace(/[^a-zA-Z0-9]/g, '_');
     const uploadId = 'upload_' + Date.now() + '_' + safeName;
-    const upObj = { id: uploadId, name: file.name, progress: 0, speed: '\u8ba1\u7b97\u4e2d...', timestamp: new Date().toISOString() };
+    const upObj = { 
+      id: uploadId, 
+      name: file.name, 
+      progress: 0, 
+      speed: '排队中...', 
+      status: 'waiting',
+      timestamp: new Date().toISOString(),
+      onStatusChange: (status) => {
+        upObj.status = status;
+        if (status === 'uploading') {
+          upObj.speed = '准备中...';
+          fetchUnifiedMessages();
+        }
+      }
+    };
     uploadingFiles.set(uploadId, upObj);
     fetchUnifiedMessages().then(() => scrollToBottom(true));
-    
+
+    uploadQueue.addTask(uploadId, upObj, () => {
+      return startActualUpload(uploadId, file, upObj);
+    });
+  }
+
+  function startActualUpload(uploadId, file, upObj) {
     let lastLoaded = 0;
     let lastTime = Date.now();
 
@@ -953,7 +976,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     activeXhrs.set(uploadId, { abort: () => abortUpload() });
 
-    uploadFileChunked(file, onProgress, onAbort)
+    return uploadFileChunked(file, onProgress, onAbort)
       .then(() => {
         activeXhrs.delete(uploadId);
         upObj.progress = 100;
@@ -963,10 +986,13 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`发送成功: ${file.name}`, 'success');
         addLog(`发送文件: ${file.name}`);
         
-        setTimeout(() => {
-          uploadingFiles.delete(uploadId);
-          fetchUnifiedMessages();
-        }, 1000);
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            uploadingFiles.delete(uploadId);
+            fetchUnifiedMessages();
+            resolve();
+          }, 1000);
+        });
       })
       .catch((err) => {
         activeXhrs.delete(uploadId);
@@ -978,6 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast(`发送失败: ${err.message || file.name}`, 'error');
         }
         fetchUnifiedMessages();
+        throw err;
       });
   }
 
