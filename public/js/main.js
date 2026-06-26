@@ -929,6 +929,7 @@ document.addEventListener('DOMContentLoaded', () => {
       status: 'waiting',
       timestamp: new Date().toISOString(),
       onStatusChange: (status) => {
+        upObj.status = status;
         if (status === 'uploading') {
           upObj.speed = '准备中...';
           fetchUnifiedMessages();

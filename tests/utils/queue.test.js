@@ -112,4 +112,24 @@ describe('ConcurrencyQueue (Frontend Concurrency Control)', () => {
     expect(queue.getTask('task1')).toBeUndefined();
     expect(queue.activeCount).toBe(1);
   });
+
+  test('should schedule next task when a task throws synchronously', async () => {
+    let runCount = 0;
+    queue.addTask('task1', {}, () => {
+      runCount++;
+      throw new Error('Sync throw');
+    });
+
+    queue.addTask('task2', {}, () => {
+      runCount++;
+      return Promise.resolve();
+    });
+
+    expect(runCount).toBe(2);
+
+    await new Promise(process.nextTick);
+
+    expect(queue.activeCount).toBe(0);
+    expect(queue.getTask('task1')).toBeUndefined();
+  });
 });

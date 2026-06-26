@@ -49,7 +49,14 @@ export class ConcurrencyQueue {
         nextTask.data.onStatusChange('uploading');
       }
 
-      nextTask.startFn()
+      let promise;
+      try {
+        promise = nextTask.startFn();
+      } catch (err) {
+        promise = Promise.reject(err);
+      }
+
+      promise
         .then(() => {
           this.activeCount--;
           nextTask.status = 'done';
