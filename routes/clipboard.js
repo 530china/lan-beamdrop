@@ -11,7 +11,6 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    await clipboard.syncFromPC();
     const history = clipboard.getHistory();
     res.json({ success: true, history });
   } catch (err) {
@@ -50,13 +49,7 @@ router.post('/', async (req, res) => {
       deviceName: deviceName
     });
 
-    // 同时写入 PC 系统剪切板
-    try {
-      await clipboard.writeToPC(String(content));
-      console.log(`[剪切板] 手机 → PC 同步成功 (${String(content).length} 字符)`);
-    } catch (writeErr) {
-      console.warn('[剪切板] 写入 PC 系统剪切板失败:', writeErr.message);
-    }
+    // 不再强制写入 PC 本地系统剪贴板，仅作局域网共享广播
 
     broadcastUpdate('CLIPBOARD_ADDED', msg);
 

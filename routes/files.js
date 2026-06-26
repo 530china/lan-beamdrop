@@ -354,20 +354,13 @@ router.get('/download/:filename', (req, res) => {
       return res.sendFile(resolvedPath);
     }
 
-    const stat = fs.statSync(filePath);
-
-    // 设置下载头
-    res.setHeader('Content-Length', stat.size);
+    // 设置下载头并使用 res.sendFile 实现对 Range/断点续传 的原生支持
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
     res.setHeader('Content-Type', contentType);
 
-    // 流式传输
-    const readStream = fs.createReadStream(filePath);
-    readStream.pipe(res);
-
-    readStream.on('error', (err) => {
-      console.error('[文件] 下载出错:', err.message);
-      if (!res.headersSent) {
+    return res.sendFile(resolvedPath, (err) => {
+      if (err && !res.headersSent) {
+        console.error('[文件] 下载出错:', err.message);
         res.status(500).json({ success: false, error: '下载失败' });
       }
     });
