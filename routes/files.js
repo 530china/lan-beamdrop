@@ -591,25 +591,44 @@ router.post('/merge', async (req, res) => {
     }
 
     const writeStream = fs.createWriteStream(finalPath);
+    let writeError = null;
+    writeStream.on('error', (err) => {
+      writeError = err;
+      console.error('[文件] 合并写入流出错:', err);
+    });
     
     try {
       for (let i = 0; i < totalChunks; i++) {
+        if (writeError) throw writeError;
+
         const chunkPath = path.join(chunkDir, i.toString());
         if (!fs.existsSync(chunkPath)) {
           throw new Error(`分片 ${i} 丢失`);
         }
         
-        await new Promise((resolve, reject) => {
-          const readStream = fs.createReadStream(chunkPath);
-          readStream.pipe(writeStream, { end: false });
-          readStream.on('end', resolve);
-          readStream.on('error', reject);
-        });
+        const readStream = fs.createReadStream(chunkPath);
+        try {
+          for await (const chunk of readStream) {
+            if (writeError) throw writeError;
+            const keepWriting = writeStream.write(chunk);
+            if (!keepWriting) {
+              await new Promise((resolve) => {
+                writeStream.once('drain', resolve);
+              });
+            }
+          }
+        } finally {
+          readStream.destroy();
+        }
       }
       
+      if (writeError) throw writeError;
+      
       await new Promise((resolve, reject) => {
-        writeStream.end(resolve);
-        writeStream.on('error', reject);
+        writeStream.end((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
       });
 
       // 合并成功后，清理遗留的切片目录
@@ -634,8 +653,12 @@ router.post('/merge', async (req, res) => {
 
       res.json({ success: true, message: '文件合并成功', file: safeFilename });
     } catch (mergeErr) {
-      writeStream.end();
-      if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+      writeStream.destroy();
+      if (fs.existsSync(finalPath)) {
+        try {
+          fs.unlinkSync(finalPath);
+        } catch (e) {}
+      }
       return res.status(400).json({ success: false, error: mergeErr.message });
     }
 
