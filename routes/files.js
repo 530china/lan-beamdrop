@@ -214,8 +214,10 @@ function generateThumbnailAsync(filePath, thumbPath, filename) {
     }
   });
 
-  generatingThumbnails.set(filename, promise);
-  return promise;
+  // 附加 .catch 处理，吞掉 Rejection，转换为 Resolve，彻底杜绝 Node.js 进程 UnhandledPromiseRejection 崩溃
+  const safePromise = promise.catch(() => {});
+  generatingThumbnails.set(filename, safePromise);
+  return safePromise;
 }
 
 /**
@@ -572,7 +574,6 @@ router.post('/upload', (req, res, next) => {
       if (isImage) {
         const thumbPath = path.join(getThumbnailsDir(), file.name);
         if (!generatingThumbnails.has(file.name)) {
-          generatingThumbnails.add(file.name);
           generateThumbnailAsync(file.path, thumbPath, file.name);
         }
       }
@@ -795,7 +796,6 @@ router.post('/merge', async (req, res) => {
       if (isImage) {
         const thumbPath = path.join(getThumbnailsDir(), safeFilename);
         if (!generatingThumbnails.has(safeFilename)) {
-          generatingThumbnails.add(safeFilename);
           generateThumbnailAsync(finalPath, thumbPath, safeFilename);
         }
       }
