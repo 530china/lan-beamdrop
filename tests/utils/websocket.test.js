@@ -1,6 +1,6 @@
 const http = require('http');
 const WebSocket = require('ws');
-const { initWebSocketServer, broadcastUpdate } = require('../../utils/websocket');
+const { initWebSocketServer, broadcastUpdate, getWss } = require('../../utils/websocket');
 
 describe('WebSocket Engine', () => {
   let server;
@@ -58,5 +58,67 @@ describe('WebSocket Engine', () => {
     expect(() => {
       broadcastUpdate('SILENT_EVENT');
     }).not.toThrow();
+  });
+
+  test('should isolate client.send errors and continue broadcasting to other clients', (done) => {
+    const ws1 = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws2 = new WebSocket(`ws://127.0.0.1:${port}`);
+    let openCount = 0;
+
+    const cleanup = () => {
+      if (ws1.readyState === WebSocket.OPEN) ws1.close();
+      if (ws2.readyState === WebSocket.OPEN) ws2.close();
+    };
+
+    const onOpen = () => {
+      openCount++;
+      if (openCount === 2) {
+        const wss = getWss();
+        expect(wss).toBeDefined();
+        const clientsArray = Array.from(wss.clients);
+        const activeClients = clientsArray.filter(c => c.readyState === 1);
+        expect(activeClients.length).toBeGreaterThanOrEqual(2);
+
+        // Stub the first active client to throw an error on send
+        const badClient = activeClients[0];
+        badClient.send = jest.fn().mockImplementation(() => {
+          throw new Error('Socket send error');
+        });
+
+        let ws1Received = false;
+        let ws2Received = false;
+
+        ws1.on('message', () => {
+          ws1Received = true;
+          checkCompletion();
+        });
+
+        ws2.on('message', () => {
+          ws2Received = true;
+          checkCompletion();
+        });
+
+        const checkCompletion = () => {
+          setTimeout(() => {
+            try {
+              expect(ws1Received || ws2Received).toBe(true);
+              expect(badClient.send).toHaveBeenCalled();
+              cleanup();
+              done();
+            } catch (err) {
+              cleanup();
+              done(err);
+            }
+          }, 50);
+        };
+
+        expect(() => {
+          broadcastUpdate('TEST_FAULT_TOLERANCE', { ok: true });
+        }).not.toThrow();
+      }
+    };
+
+    ws1.on('open', onOpen);
+    ws2.on('open', onOpen);
   });
 });

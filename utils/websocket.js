@@ -37,8 +37,12 @@ function broadcastUpdate(action = 'UPDATE', data = null) {
   
   wss.clients.forEach((client) => {
     if (client.readyState === 1) { // WebSocket.OPEN
-      client.send(message);
-      count++;
+      try {
+        client.send(message);
+        count++;
+      } catch (err) {
+        console.warn('[WebSocket] 广播推送至个别设备失败:', err.message);
+      }
     }
   });
   
@@ -47,7 +51,15 @@ function broadcastUpdate(action = 'UPDATE', data = null) {
   }
 }
 
+/**
+ * Returns the underlying WebSocket Server instance (for testing/diagnostics)
+ */
+function getWss() {
+  return wss;
+}
+
 module.exports = {
   initWebSocketServer,
-  broadcastUpdate
+  broadcastUpdate,
+  getWss
 };
