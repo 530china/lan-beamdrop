@@ -93,4 +93,41 @@ describe('Chunked File Upload (TDD)', () => {
     const content = fs.readFileSync(mergedPath, 'utf8');
     expect(content).toBe('Hello World!');
   });
+
+  it('should dynamically upload chunks to a newly updated shareDir settings path', async () => {
+    const originalShareDir = config.shareDir;
+    const dynamicShareDir = path.join(__dirname, 'test_share_dynamic');
+    
+    try {
+      config.shareDir = dynamicShareDir;
+      if (!fs.existsSync(dynamicShareDir)) {
+        fs.mkdirSync(dynamicShareDir, { recursive: true });
+      }
+
+      const fileId = 'test-file-dynamic-123';
+      const filename = 'dynamic-file.txt';
+      const chunkContent = Buffer.from('Dynamic content');
+      
+      const res = await request(app)
+        .post('/api/files/chunk')
+        .field('fileId', fileId)
+        .field('filename', filename)
+        .field('index', 0)
+        .field('totalChunks', 1)
+        .attach('chunk', chunkContent, 'blob');
+
+      expect(res.status).toBe(200);
+      
+      // Verify that chunks are saved in the new dynamicShareDir path
+      const expectedChunkPath = path.join(dynamicShareDir, '.chunks', fileId, '0');
+      expect(fs.existsSync(expectedChunkPath)).toBe(true);
+
+    } finally {
+      // Restore config and cleanup
+      config.shareDir = originalShareDir;
+      if (fs.existsSync(dynamicShareDir)) {
+        fs.rmSync(dynamicShareDir, { recursive: true, force: true });
+      }
+    }
+  });
 });

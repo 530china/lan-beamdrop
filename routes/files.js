@@ -15,18 +15,34 @@ if (!fs.existsSync(config.shareDir)) {
   console.log(`[文件] 共享目录已创建: ${config.shareDir}`);
 }
 
-const thumbnailsDir = path.join(config.shareDir, '.thumbnails');
-if (!fs.existsSync(thumbnailsDir)) {
-  fs.mkdirSync(thumbnailsDir, { recursive: true });
-  console.log(`[文件] 缩略图缓存目录已创建: ${thumbnailsDir}`);
-}
+const getThumbnailsDir = () => {
+  const dir = path.join(config.shareDir, '.thumbnails');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+};
 
-const chunkUploadDir = path.join(config.shareDir, '.chunks');
-if (!fs.existsSync(chunkUploadDir)) {
-  fs.mkdirSync(chunkUploadDir, { recursive: true });
-  console.log(`[文件] 切片缓存目录已创建: ${chunkUploadDir}`);
-}
-const chunkUpload = multer({ dest: chunkUploadDir });
+const getChunkUploadDir = () => {
+  const dir = path.join(config.shareDir, '.chunks');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+};
+
+// 配置 multer 动态切片上传，实现零重启物理目录热切换
+const chunkStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, getChunkUploadDir());
+  },
+  filename: (req, file, cb) => {
+    const tempName = 'chunk-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    cb(null, tempName);
+  }
+});
+
+const chunkUpload = multer({ storage: chunkStorage });
 
 
 // 配置 multer 文件上传
@@ -144,7 +160,7 @@ router.get('/thumbnail/:filename', async (req, res) => {
       return res.redirect(`/api/files/download/${encodeURIComponent(filename)}`);
     }
 
-    const thumbPath = path.join(thumbnailsDir, filename);
+    const thumbPath = path.join(getThumbnailsDir(), filename);
     
     // 如果缓存缩略图不存在，则生成
     if (!fs.existsSync(thumbPath)) {
@@ -544,7 +560,7 @@ router.post('/chunk', chunkUpload.single('chunk'), (req, res) => {
 
     fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
     index = path.basename(index.toString()).replace(/[<>:"\/\\|?*]/g, '_');
-    const chunkDir = path.join(chunkUploadDir, fileId);
+    const chunkDir = path.join(getChunkUploadDir(), fileId);
     if (!fs.existsSync(chunkDir)) {
       fs.mkdirSync(chunkDir, { recursive: true });
     }
@@ -571,7 +587,7 @@ router.post('/merge', async (req, res) => {
     }
 
     fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
-    const chunkDir = path.join(chunkUploadDir, fileId);
+    const chunkDir = path.join(getChunkUploadDir(), fileId);
     if (!fs.existsSync(chunkDir)) {
       return res.status(400).json({ success: false, error: '切片目录不存在' });
     }
