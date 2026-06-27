@@ -99,7 +99,8 @@ export function createMessageNode(msg, context) {
       </div>
       <div class="nine-grid" data-count="${msg.images.length}">`;
     msg.images.slice(0, 9).forEach((img, idx) => {
-      const thumbUrl = `/api/files/thumbnail/${encodeURIComponent(img.content)}`;
+      // 携带时间戳参数作为缓存占位符（Buster），以防移动端浏览器强行缓存了 302 错误重定向或破图状态导致刷新无效
+      const thumbUrl = `/api/files/thumbnail/${encodeURIComponent(img.content)}?t=${img.timestamp ? encodeURIComponent(img.timestamp) : ''}`;
       if (idx === 8 && msg.images.length > 9) {
         gridHtml += `
           <div class="img-wrapper">
