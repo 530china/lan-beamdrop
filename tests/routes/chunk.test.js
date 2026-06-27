@@ -155,5 +155,22 @@ describe('Chunked File Upload (TDD)', () => {
     expect(fs.existsSync(oldDir)).toBe(false);
     expect(fs.existsSync(newDir)).toBe(true);
   });
+
+  it('should clean up chunk directories immediately when cancel-upload is called', async () => {
+    const fileId = 'test-file-cancel-999';
+    const chunkDir = path.join(config.shareDir, '.chunks', fileId);
+    fs.mkdirSync(chunkDir, { recursive: true });
+    fs.writeFileSync(path.join(chunkDir, '0'), 'some temp data');
+
+    expect(fs.existsSync(chunkDir)).toBe(true);
+
+    const res = await request(app)
+      .post('/api/files/cancel-upload')
+      .send({ fileId });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(fs.existsSync(chunkDir)).toBe(false);
+  });
 });
 

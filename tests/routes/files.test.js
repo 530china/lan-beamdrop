@@ -51,7 +51,7 @@ jest.mock('fs', () => {
     mkdirSync: jest.fn((p) => {
       mockMemoryFs[p] = { type: 'dir' };
     }),
-    readdirSync: jest.fn((p) => {
+    readdirSync: jest.fn((p, options) => {
       const results = [];
       for (const key in mockMemoryFs) {
         if (key.startsWith(p) && key !== p) {
@@ -60,6 +60,17 @@ jest.mock('fs', () => {
             results.push(relative);
           }
         }
+      }
+      if (options && options.withFileTypes) {
+        return results.map(name => {
+          const fullPath = path.join(p, name);
+          const isDir = mockMemoryFs[fullPath] && mockMemoryFs[fullPath].type === 'dir';
+          return {
+            name,
+            isDirectory: () => isDir,
+            isFile: () => !isDir
+          };
+        });
       }
       return results;
     }),

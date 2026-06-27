@@ -739,4 +739,32 @@ router.post('/merge', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/files/cancel-upload
+ * 主动取消文件上传，即时清理对应切片目录
+ */
+router.post('/cancel-upload', (req, res) => {
+  try {
+    let { fileId } = req.body;
+    if (!fileId) {
+      return res.status(400).json({ success: false, error: '参数不完整' });
+    }
+
+    // 安全检查，防路径穿越
+    fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
+    const chunkDir = path.join(getChunkUploadDir(), fileId);
+
+    if (fs.existsSync(chunkDir)) {
+      rmdirRecursiveSync(chunkDir);
+      console.log(`[文件] 上传取消，切片目录已即时清理: ${fileId}`);
+    }
+
+    res.json({ success: true, message: '上传取消，切片清理成功' });
+  } catch (err) {
+    console.error('[文件] 取消上传清理失败:', err.message);
+    res.status(500).json({ success: false, error: '取消上传清理失败' });
+  }
+});
+
 module.exports = router;
+
