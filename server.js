@@ -54,8 +54,17 @@ if (config.accessPassword) {
 const authMiddleware = require('./middleware/auth');
 app.use(authMiddleware);
 
-// 静态文件（Web UI）
-app.use(express.static(path.join(__dirname, 'public')));
+// 静态文件（Web UI），对 HTML, JS, CSS 强制禁用强缓存，防止移动端升级后浏览器读取旧的 JS/CSS 缓存
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (['.html', '.js', '.css'].includes(ext)) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // 请求日志
 app.use((req, res, next) => {
