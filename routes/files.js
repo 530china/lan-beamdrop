@@ -31,6 +31,60 @@ const getChunkUploadDir = () => {
   return dir;
 };
 
+// 递归删除文件夹及其所有内容，纯 JS 实现以防止 Windows 锁定文件触发 Node.js 原生崩溃
+function rmdirRecursiveSync(dirPath) {
+  if (fs.existsSync(dirPath)) {
+    const files = fs.readdirSync(dirPath, { withFileTypes: true });
+    files.forEach((file) => {
+      const curPath = path.join(dirPath, file.name);
+      if (file.isDirectory()) {
+        rmdirRecursiveSync(curPath);
+      } else {
+        fs.unlinkSync(curPath);
+      }
+    });
+    fs.rmdirSync(dirPath);
+  }
+}
+
+let lastCleanupTime = 0;
+function cleanupOrphanedChunks() {
+  const now = Date.now();
+  // 10分钟限频锁，测试环境下跳过以保证测试独立性与可重复性
+  if (process.env.NODE_ENV !== 'test' && now - lastCleanupTime < 10 * 60 * 1000) {
+    return;
+  }
+  lastCleanupTime = now;
+
+  try {
+    const chunkDir = getChunkUploadDir();
+    if (!fs.existsSync(chunkDir)) return;
+    
+    const items = fs.readdirSync(chunkDir, { withFileTypes: true });
+    items.forEach((item) => {
+      if (item.isDirectory()) {
+        const itemPath = path.join(chunkDir, item.name);
+        const stats = fs.statSync(itemPath);
+        // 清理超过 24 小时未修改的孤立缓存目录
+        if (now - stats.mtimeMs > 24 * 60 * 60 * 1000) {
+          try {
+            rmdirRecursiveSync(itemPath);
+            console.log(`[文件] 已清理超期未合并的孤立切片目录: ${item.name}`);
+          } catch (e) {
+            console.warn(`[文件] 尝试清理孤立切片目录失败 ${item.name}:`, e.message);
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[文件] 清理孤立切片失败:', err.message);
+  }
+}
+
+
+// 启动时同步清理一次
+cleanupOrphanedChunks();
+
 // 配置 multer 动态切片上传，实现零重启物理目录热切换
 const chunkStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -85,6 +139,7 @@ const upload = multer({
  */
 router.get('/', (req, res) => {
   try {
+    cleanupOrphanedChunks();
     const items = fs.readdirSync(config.shareDir, { withFileTypes: true });
     const files = [];
     const now = Date.now();

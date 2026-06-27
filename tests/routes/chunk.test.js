@@ -130,4 +130,30 @@ describe('Chunked File Upload (TDD)', () => {
       }
     }
   });
+
+  it('should clean up chunk directories older than 24 hours but keep newer ones', async () => {
+    const chunksBaseDir = path.join(config.shareDir, '.chunks');
+    if (!fs.existsSync(chunksBaseDir)) {
+      fs.mkdirSync(chunksBaseDir, { recursive: true });
+    }
+
+    const oldDir = path.join(chunksBaseDir, 'old-task');
+    const newDir = path.join(chunksBaseDir, 'new-task');
+
+    fs.mkdirSync(oldDir, { recursive: true });
+    fs.mkdirSync(newDir, { recursive: true });
+
+    // Force oldDir mtime to 25 hours ago
+    const pastTime = (Date.now() - 25 * 60 * 60 * 1000) / 1000;
+    fs.utimesSync(oldDir, pastTime, pastTime);
+
+    // Call GET /api/files to trigger cleanup
+    const res = await request(app).get('/api/files');
+    expect(res.status).toBe(200);
+
+    // Assert cleanup occurred
+    expect(fs.existsSync(oldDir)).toBe(false);
+    expect(fs.existsSync(newDir)).toBe(true);
+  });
 });
+
