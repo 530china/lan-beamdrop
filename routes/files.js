@@ -249,22 +249,35 @@ router.get('/thumbnail/:filename', async (req, res) => {
           return res.redirect(`/api/files/download/${encodeURIComponent(filename)}?inline=true`);
         }
       } else {
-        // 生产/开发环境下采用异步后台生成，即时返回 302 重定向（内联），避免阻塞请求导致超时破图
+        // 生产/开发环境下采用异步后台生成，并支持延迟轮询等待，避免直接重定向至原图加重手机端负载
         if (!generatingThumbnails.has(filename)) {
           generatingThumbnails.add(filename);
           generateThumbnailAsync(filePath, thumbPath, filename);
         }
-        return res.redirect(`/api/files/download/${encodeURIComponent(filename)}?inline=true`);
+        
+        // 异步非阻塞等待生成完成（最多等待 3 秒，每 150ms 检查一次）
+        let retries = 20;
+        while (retries > 0 && !fs.existsSync(thumbPath)) {
+          await new Promise(resolve => setTimeout(resolve, 150));
+          retries--;
+        }
       }
     }
 
-    const stat = fs.statSync(thumbPath);
-    res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Type', 'image/jpeg'); // Jimp 默认输出格式之一，或者根据扩展名推断
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // 浏览器缓存一天
+    // 如果生成成功或原本已存在，返回缩略图
+    if (fs.existsSync(thumbPath)) {
+      const stat = fs.statSync(thumbPath);
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Content-Type', 'image/jpeg'); // Jimp 默认输出格式之一，或者根据扩展名推断
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 浏览器缓存一天
 
-    const readStream = fs.createReadStream(thumbPath);
-    readStream.pipe(res);
+      const readStream = fs.createReadStream(thumbPath);
+      return readStream.pipe(res);
+    }
+
+    // 实在等不到（如原图超大或转换极其缓慢），重定向到原图展示（内联），避免浏览器显示破图
+    console.warn(`[缩略图] 响应等待超时，降级重定向至原图: ${filename}`);
+    return res.redirect(`/api/files/download/${encodeURIComponent(filename)}?inline=true`);
   } catch (err) {
     console.error('[缩略图] 请求异常:', err.message);
     res.status(500).json({ success: false, error: '获取缩略图失败' });
@@ -531,6 +544,19 @@ router.post('/upload', (req, res, next) => {
 
     console.log(`[文件] 收到 ${uploaded.length} 个文件:`, uploaded.map((f) => f.name).join(', '));
 
+    // 上传完成后，主动在后台生成图片缩略图，提前做好缓存，避开客户端并发访问时的计算风暴
+    uploaded.forEach((file) => {
+      const ext = path.extname(file.name).toLowerCase();
+      const isImage = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'].includes(ext);
+      if (isImage) {
+        const thumbPath = path.join(getThumbnailsDir(), file.name);
+        if (!generatingThumbnails.has(file.name)) {
+          generatingThumbnails.add(file.name);
+          generateThumbnailAsync(file.path, thumbPath, file.name);
+        }
+      }
+    });
+
     broadcastUpdate('FILE_ADDED', { files: uploaded });
 
     res.json({
@@ -741,6 +767,17 @@ router.post('/merge', async (req, res) => {
         mtime = stats.mtime.toISOString();
         size = stats.size;
       } catch (e) {}
+
+      // 合并完成后，主动在后台生成图片缩略图，提前做好缓存，避开客户端并发访问时的计算风暴
+      const ext = path.extname(safeFilename).toLowerCase();
+      const isImage = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'].includes(ext);
+      if (isImage) {
+        const thumbPath = path.join(getThumbnailsDir(), safeFilename);
+        if (!generatingThumbnails.has(safeFilename)) {
+          generatingThumbnails.add(safeFilename);
+          generateThumbnailAsync(finalPath, thumbPath, safeFilename);
+        }
+      }
 
       broadcastUpdate('FILE_ADDED', {
         files: [{
