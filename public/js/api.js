@@ -80,7 +80,20 @@ export async function uploadFileChunked(file, onProgress, onAbort) {
     }
   });
 
-  await Promise.all(workers);
+  try {
+    await Promise.all(workers);
+  } catch (err) {
+    hasError = true;
+    throw err;
+  } finally {
+    if (hasError || abortController.signal.aborted) {
+      fetch(`${apiConfig.baseUrl}/files/cancel-upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId })
+      }).catch(err => console.warn('Cancel upload cleanup failed:', err));
+    }
+  }
 
   if (hasError) {
     throw new Error('File upload failed after retries.');

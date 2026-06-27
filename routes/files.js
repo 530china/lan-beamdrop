@@ -15,18 +15,88 @@ if (!fs.existsSync(config.shareDir)) {
   console.log(`[文件] 共享目录已创建: ${config.shareDir}`);
 }
 
-const thumbnailsDir = path.join(config.shareDir, '.thumbnails');
-if (!fs.existsSync(thumbnailsDir)) {
-  fs.mkdirSync(thumbnailsDir, { recursive: true });
-  console.log(`[文件] 缩略图缓存目录已创建: ${thumbnailsDir}`);
+const getThumbnailsDir = () => {
+  const dir = path.join(config.shareDir, '.thumbnails');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+};
+
+const getChunkUploadDir = () => {
+  const dir = path.join(config.shareDir, '.chunks');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+};
+
+// 递归删除文件夹及其所有内容，纯 JS 实现以防止 Windows 锁定文件触发 Node.js 原生崩溃
+function rmdirRecursiveSync(dirPath) {
+  if (fs.existsSync(dirPath)) {
+    const files = fs.readdirSync(dirPath, { withFileTypes: true });
+    files.forEach((file) => {
+      const curPath = path.join(dirPath, file.name);
+      if (file.isDirectory()) {
+        rmdirRecursiveSync(curPath);
+      } else {
+        fs.unlinkSync(curPath);
+      }
+    });
+    fs.rmdirSync(dirPath);
+  }
 }
 
-const chunkUploadDir = path.join(config.shareDir, '.chunks');
-if (!fs.existsSync(chunkUploadDir)) {
-  fs.mkdirSync(chunkUploadDir, { recursive: true });
-  console.log(`[文件] 切片缓存目录已创建: ${chunkUploadDir}`);
+let lastCleanupTime = 0;
+function cleanupOrphanedChunks() {
+  const now = Date.now();
+  // 10分钟限频锁，测试环境下跳过以保证测试独立性与可重复性
+  if (process.env.NODE_ENV !== 'test' && now - lastCleanupTime < 10 * 60 * 1000) {
+    return;
+  }
+  lastCleanupTime = now;
+
+  try {
+    const chunkDir = getChunkUploadDir();
+    if (!fs.existsSync(chunkDir)) return;
+    
+    const items = fs.readdirSync(chunkDir, { withFileTypes: true });
+    items.forEach((item) => {
+      if (item.isDirectory()) {
+        const itemPath = path.join(chunkDir, item.name);
+        const stats = fs.statSync(itemPath);
+        // 清理超过 24 小时未修改的孤立缓存目录
+        if (now - stats.mtimeMs > 24 * 60 * 60 * 1000) {
+          try {
+            rmdirRecursiveSync(itemPath);
+            console.log(`[文件] 已清理超期未合并的孤立切片目录: ${item.name}`);
+          } catch (e) {
+            console.warn(`[文件] 尝试清理孤立切片目录失败 ${item.name}:`, e.message);
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[文件] 清理孤立切片失败:', err.message);
+  }
 }
-const chunkUpload = multer({ dest: chunkUploadDir });
+
+
+// 启动时同步清理一次
+cleanupOrphanedChunks();
+
+// 配置 multer 动态切片上传，实现零重启物理目录热切换
+const chunkStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, getChunkUploadDir());
+  },
+  filename: (req, file, cb) => {
+    const tempName = 'chunk-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    cb(null, tempName);
+  }
+});
+
+const chunkUpload = multer({ storage: chunkStorage });
 
 
 // 配置 multer 文件上传
@@ -69,6 +139,7 @@ const upload = multer({
  */
 router.get('/', (req, res) => {
   try {
+    cleanupOrphanedChunks();
     const items = fs.readdirSync(config.shareDir, { withFileTypes: true });
     const files = [];
     const now = Date.now();
@@ -144,7 +215,7 @@ router.get('/thumbnail/:filename', async (req, res) => {
       return res.redirect(`/api/files/download/${encodeURIComponent(filename)}`);
     }
 
-    const thumbPath = path.join(thumbnailsDir, filename);
+    const thumbPath = path.join(getThumbnailsDir(), filename);
     
     // 如果缓存缩略图不存在，则生成
     if (!fs.existsSync(thumbPath)) {
@@ -544,7 +615,7 @@ router.post('/chunk', chunkUpload.single('chunk'), (req, res) => {
 
     fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
     index = path.basename(index.toString()).replace(/[<>:"\/\\|?*]/g, '_');
-    const chunkDir = path.join(chunkUploadDir, fileId);
+    const chunkDir = path.join(getChunkUploadDir(), fileId);
     if (!fs.existsSync(chunkDir)) {
       fs.mkdirSync(chunkDir, { recursive: true });
     }
@@ -571,7 +642,7 @@ router.post('/merge', async (req, res) => {
     }
 
     fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
-    const chunkDir = path.join(chunkUploadDir, fileId);
+    const chunkDir = path.join(getChunkUploadDir(), fileId);
     if (!fs.existsSync(chunkDir)) {
       return res.status(400).json({ success: false, error: '切片目录不存在' });
     }
@@ -668,4 +739,32 @@ router.post('/merge', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/files/cancel-upload
+ * 主动取消文件上传，即时清理对应切片目录
+ */
+router.post('/cancel-upload', (req, res) => {
+  try {
+    let { fileId } = req.body;
+    if (!fileId) {
+      return res.status(400).json({ success: false, error: '参数不完整' });
+    }
+
+    // 安全检查，防路径穿越
+    fileId = path.basename(fileId.toString()).replace(/[<>:"\/\\|?*]/g, '_');
+    const chunkDir = path.join(getChunkUploadDir(), fileId);
+
+    if (fs.existsSync(chunkDir)) {
+      rmdirRecursiveSync(chunkDir);
+      console.log(`[文件] 上传取消，切片目录已即时清理: ${fileId}`);
+    }
+
+    res.json({ success: true, message: '上传取消，切片清理成功' });
+  } catch (err) {
+    console.error('[文件] 取消上传清理失败:', err.message);
+    res.status(500).json({ success: false, error: '取消上传清理失败' });
+  }
+});
+
 module.exports = router;
+

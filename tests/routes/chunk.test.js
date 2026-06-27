@@ -93,4 +93,84 @@ describe('Chunked File Upload (TDD)', () => {
     const content = fs.readFileSync(mergedPath, 'utf8');
     expect(content).toBe('Hello World!');
   });
+
+  it('should dynamically upload chunks to a newly updated shareDir settings path', async () => {
+    const originalShareDir = config.shareDir;
+    const dynamicShareDir = path.join(__dirname, 'test_share_dynamic');
+    
+    try {
+      config.shareDir = dynamicShareDir;
+      if (!fs.existsSync(dynamicShareDir)) {
+        fs.mkdirSync(dynamicShareDir, { recursive: true });
+      }
+
+      const fileId = 'test-file-dynamic-123';
+      const filename = 'dynamic-file.txt';
+      const chunkContent = Buffer.from('Dynamic content');
+      
+      const res = await request(app)
+        .post('/api/files/chunk')
+        .field('fileId', fileId)
+        .field('filename', filename)
+        .field('index', 0)
+        .field('totalChunks', 1)
+        .attach('chunk', chunkContent, 'blob');
+
+      expect(res.status).toBe(200);
+      
+      // Verify that chunks are saved in the new dynamicShareDir path
+      const expectedChunkPath = path.join(dynamicShareDir, '.chunks', fileId, '0');
+      expect(fs.existsSync(expectedChunkPath)).toBe(true);
+
+    } finally {
+      // Restore config and cleanup
+      config.shareDir = originalShareDir;
+      if (fs.existsSync(dynamicShareDir)) {
+        fs.rmSync(dynamicShareDir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('should clean up chunk directories older than 24 hours but keep newer ones', async () => {
+    const chunksBaseDir = path.join(config.shareDir, '.chunks');
+    if (!fs.existsSync(chunksBaseDir)) {
+      fs.mkdirSync(chunksBaseDir, { recursive: true });
+    }
+
+    const oldDir = path.join(chunksBaseDir, 'old-task');
+    const newDir = path.join(chunksBaseDir, 'new-task');
+
+    fs.mkdirSync(oldDir, { recursive: true });
+    fs.mkdirSync(newDir, { recursive: true });
+
+    // Force oldDir mtime to 25 hours ago
+    const pastTime = (Date.now() - 25 * 60 * 60 * 1000) / 1000;
+    fs.utimesSync(oldDir, pastTime, pastTime);
+
+    // Call GET /api/files to trigger cleanup
+    const res = await request(app).get('/api/files');
+    expect(res.status).toBe(200);
+
+    // Assert cleanup occurred
+    expect(fs.existsSync(oldDir)).toBe(false);
+    expect(fs.existsSync(newDir)).toBe(true);
+  });
+
+  it('should clean up chunk directories immediately when cancel-upload is called', async () => {
+    const fileId = 'test-file-cancel-999';
+    const chunkDir = path.join(config.shareDir, '.chunks', fileId);
+    fs.mkdirSync(chunkDir, { recursive: true });
+    fs.writeFileSync(path.join(chunkDir, '0'), 'some temp data');
+
+    expect(fs.existsSync(chunkDir)).toBe(true);
+
+    const res = await request(app)
+      .post('/api/files/cancel-upload')
+      .send({ fileId });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(fs.existsSync(chunkDir)).toBe(false);
+  });
 });
+
